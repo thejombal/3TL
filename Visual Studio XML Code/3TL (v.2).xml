@@ -1,0 +1,2850 @@
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+-- 3TL_Dashboard --
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////-->
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+
+<?xml version="1.0" encoding="utf-8"?>
+<Report MustUnderstand="df" xmlns="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition" xmlns:rd="http://schemas.microsoft.com/SQLServer/reporting/reportdesigner" xmlns:df="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition/defaultfontfamily">
+  <df:DefaultFontFamily>Segoe UI</df:DefaultFontFamily>
+  <AutoRefresh>0</AutoRefresh>
+  <DataSources>
+    <DataSource Name="DATA_TRACKER">
+      <DataSourceReference>DATA_TRACKER</DataSourceReference>
+      <rd:SecurityType>None</rd:SecurityType>
+      <rd:DataSourceID>03f0ceb7-a01d-468b-8b89-fa8341e001c2</rd:DataSourceID>
+    </DataSource>
+    <DataSource Name="GLOBAL">
+      <DataSourceReference>GLOBAL</DataSourceReference>
+      <rd:SecurityType>None</rd:SecurityType>
+      <rd:DataSourceID>30cc9770-7110-4d89-b755-85e3562d8996</rd:DataSourceID>
+    </DataSource>
+  </DataSources>
+  <DataSets>
+    <DataSet Name="get_3TL_Tracker">
+      <Query>
+        <DataSourceName>DATA_TRACKER</DataSourceName>
+        <CommandText>
+
+SELECT A.HCO_CODE, A.HCO_NAME, MONTH_YEAR, a.YEAR_MONTH, cnt_year_month, max(FP_YEAR_MONTH) as fp_year_month, [3TL_YN], count(distinct cor.hco_code) as FactReady, RDD_READY
+FROM 
+(
+select R.HCO_CODE, HCO_NAME, MONTH_YEAR, YEAR_MONTH, COUNT(YEAR_MONTH) as CNT_YEAR_MONTH, FP_YEAR_MONTH, RDD_READY from 
+(select distinct HCO_CODE, HCO_NAME, min(date) as dt, FORMAT(CONVERT(DATE, min(YYYYMMDD)), 'MM/yy', 'en-US') as MONTH_YEAR, YEARMONTH as YEAR_MONTH
+from refcal_hco_cross 
+where date between datefromParts(Year(dateadd(MONTH,-13,getdate())),Month(dateadd(MONTH,-13,getdate())),1) and EOMonth(dateadd(MONTH,2,getdate()))
+group by HCO_CODE, HCO_NAME, yearmonth
+union 
+select distinct HCO_CODE, HCO_NAME,  max(date) as dt ,FORMAT(CONVERT(DATE, max(YYYYMMDD)), 'MM/yy', 'en-US') as MONTH_YEAR, YEARMONTH as YEAR_MONTH
+from refcal_hco_cross 
+where date between datefromParts(Year(dateadd(MONTH,-13,getdate())),Month(dateadd(MONTH,-13,getdate())),1) and EOMonth(dateadd(MONTH,2,getdate()))
+group by hco_code, hco_name, yearmonth
+)
+as r
+left join 
+(select hco_code, min(DISCHARGE_DATE) as discharge_date, CAST(YEAR(min(DISCHARGE_DATE)) AS VARCHAR) + CAST(FORMAT(min(DISCHARGE_DATE), 'MM') AS VARCHAR) AS FP_YEAR_MONTH, max(RDD_READY) as RDD_READY
+from 
+(select  hco_code, discharge_Date, CAST(YEAR(max(DISCHARGE_DATE)) AS VARCHAR) + CAST(FORMAT(max(DISCHARGE_DATE), 'MM') AS VARCHAR) AS FP_YEAR_MONTH,
+ IIF(count(distinct los_qualified) &gt; 1, 1, 0) as RDD_READY
+
+from 
+PORTAL_ENGINE.dbo.factPatient 
+where DISCHARGE_DATE between datefromParts(Year(dateadd(MONTH,-13,getdate())),Month(dateadd(MONTH,-13,getdate())),1) and EOMonth(dateadd(MONTH,2,getdate()))
+group by hco_code, DISCHARGE_DATE) as f
+group by hco_code, FP_YEAR_MONTH
+union 
+select hco_code, max(DISCHARGE_DATE) as discharge_date, CAST(YEAR(max(DISCHARGE_DATE)) AS VARCHAR) + CAST(FORMAT(max(DISCHARGE_DATE), 'MM') AS VARCHAR) AS FP_YEAR_MONTH, max(RDD_READY) as RDD_READY
+from 
+(select  hco_code, discharge_Date, CAST(YEAR(max(DISCHARGE_DATE)) AS VARCHAR) + CAST(FORMAT(max(DISCHARGE_DATE), 'MM') AS VARCHAR) AS FP_YEAR_MONTH,
+ IIF(count(distinct los_qualified) &gt; 1, 1, 0) as RDD_READY
+ from 
+PORTAL_ENGINE.dbo.factPatient 
+where DISCHARGE_DATE between datefromParts(Year(dateadd(MONTH,-13,getdate())),Month(dateadd(MONTH,-13,getdate())),1) and EOMonth(dateadd(MONTH,2,getdate()))
+group by hco_code, DISCHARGE_DATE) as f
+group by hco_code, FP_YEAR_MONTH 
+)
+as p on r.YEAR_MONTH  = p.FP_YEAR_MONTH 
+and r.HCO_CODE = p.HCO_CODE
+and dt = discharge_date
+GROUP BY R.HCO_CODE, HCO_NAME, MONTH_YEAR, YEAR_MONTH, FP_YEAR_MONTH, RDD_READY
+) AS A 
+JOIN GLOBAL.DBO.REFHCO AS REF
+ON A.HCO_CODE = REF.HCO_CODE
+left join 
+(select * from CORRESPONDENCE 
+where notes  like 'Fact Ready%') as cor
+on a.hco_code = cor.HCO_CODE
+and a.YEAR_MONTH = cor.YEAR_MONTH
+
+WHERE [3TL_YN] &lt;&gt; 0 and NOT (CNT_YEAR_MONTH = 1 and FP_YEAR_MONTH is NULL)
+group by a.HCO_CODE, a.HCO_NAME, MONTH_YEAR, a.YEAR_MONTH, CNT_YEAR_MONTH, [3TL_YN], RDD_READY
+order by A.hco_code, YEAR_MONTH DESC</CommandText>
+      </Query>
+      <Fields>
+        <Field Name="HCO_CODE">
+          <DataField>HCO_CODE</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+        <Field Name="HCO_NAME">
+          <DataField>HCO_NAME</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+        <Field Name="MONTH_YEAR">
+          <DataField>MONTH_YEAR</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+        <Field Name="YEAR_MONTH">
+          <DataField>YEAR_MONTH</DataField>
+          <rd:TypeName>System.Int32</rd:TypeName>
+        </Field>
+        <Field Name="cnt_year_month">
+          <DataField>cnt_year_month</DataField>
+          <rd:TypeName>System.Int32</rd:TypeName>
+        </Field>
+        <Field Name="fp_year_month">
+          <DataField>fp_year_month</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+        <Field Name="ID3TL_YN">
+          <DataField>3TL_YN</DataField>
+          <rd:TypeName>System.Byte</rd:TypeName>
+        </Field>
+        <Field Name="FactReady">
+          <DataField>FactReady</DataField>
+          <rd:TypeName>System.Int32</rd:TypeName>
+        </Field>
+        <Field Name="RDD_READY">
+          <DataField>RDD_READY</DataField>
+          <rd:TypeName>System.Int32</rd:TypeName>
+        </Field>
+      </Fields>
+    </DataSet>
+    <DataSet Name="get_3TL_Detail">
+      <Query>
+        <DataSourceName>GLOBAL</DataSourceName>
+        <QueryParameters>
+          <QueryParameter Name="@HCO_CODE">
+            <Value>=Parameters!HCO_CODE.Value</Value>
+          </QueryParameter>
+        </QueryParameters>
+        <CommandText>select HCO_CODE, [3TL_YN]
+from refHCO
+where [3TL_YN] &lt;&gt; 0
+and HCO_CODE = @HCO_CODE</CommandText>
+      </Query>
+      <Fields>
+        <Field Name="HCO_CODE">
+          <DataField>HCO_CODE</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+        <Field Name="ID3TL_YN">
+          <DataField>3TL_YN</DataField>
+          <rd:TypeName>System.Byte</rd:TypeName>
+        </Field>
+      </Fields>
+    </DataSet>
+  </DataSets>
+  <ReportSections>
+    <ReportSection>
+      <Body>
+        <ReportItems>
+          <Subreport Name="e3TL_Detail_V2">
+            <ReportName>3TL_Detail_V2</ReportName>
+            <Parameters>
+              <Parameter Name="HCO_CODE">
+                <Value>=Parameters!HCO_CODE.Value</Value>
+              </Parameter>
+              <Parameter Name="YEAR_MONTH">
+                <Value>=Parameters!YEAR_MONTH.Value</Value>
+              </Parameter>
+            </Parameters>
+            <Top>0.22308in</Top>
+            <Left>6.75347in</Left>
+            <Height>10.62153in</Height>
+            <Width>4.97916in</Width>
+            <Visibility>
+              <Hidden>=iif(IsNothing(Parameters!HCO_CODE.Value),True,False)</Hidden>
+            </Visibility>
+            <Style>
+              <Border>
+                <Style>None</Style>
+              </Border>
+            </Style>
+          </Subreport>
+          <Rectangle Name="Rectangle5">
+            <ReportItems>
+              <Tablix Name="Tablix8">
+                <TablixBody>
+                  <TablixColumns>
+                    <TablixColumn>
+                      <Width>0.03125in</Width>
+                    </TablixColumn>
+                    <TablixColumn>
+                      <Width>0.60416in</Width>
+                    </TablixColumn>
+                  </TablixColumns>
+                  <TablixRows>
+                    <TablixRow>
+                      <Height>0.24738in</Height>
+                      <TablixCells>
+                        <TablixCell>
+                          <CellContents>
+                            <Textbox Name="Textbox45">
+                              <KeepTogether>true</KeepTogether>
+                              <Paragraphs>
+                                <Paragraph>
+                                  <TextRuns>
+                                    <TextRun>
+                                      <Value />
+                                      <Style>
+                                        <FontFamily>Segoe UI Light</FontFamily>
+                                        <TextDecoration>None</TextDecoration>
+                                        <Color>=iif(Not(IsNothing(Fields!fp_year_month.Value)), 
+		iif(Fields!cnt_year_month.Value = 1
+      , "#828282"
+      , ""
+      )
+	, iif(Fields!FactReady.Value = 1, 
+	iif((isNothing(Fields!fp_year_month.Value))
+		, "White", ""),"")
+	)</Color>
+                                      </Style>
+                                    </TextRun>
+                                  </TextRuns>
+                                  <Style>
+                                    <TextAlign>Center</TextAlign>
+                                  </Style>
+                                </Paragraph>
+                              </Paragraphs>
+                              <rd:DefaultName>Textbox45</rd:DefaultName>
+                              <Style>
+                                <Border>
+                                  <Color>White</Color>
+                                  <Style>None</Style>
+                                  <Width>1.5pt</Width>
+                                </Border>
+                                <BackgroundColor>#525252</BackgroundColor>
+                              </Style>
+                            </Textbox>
+                          </CellContents>
+                        </TablixCell>
+                        <TablixCell>
+                          <CellContents>
+                            <Textbox Name="Textbox6">
+                              <CanGrow>true</CanGrow>
+                              <KeepTogether>true</KeepTogether>
+                              <Paragraphs>
+                                <Paragraph>
+                                  <TextRuns>
+                                    <TextRun>
+                                      <Label>1</Label>
+                                      <Value>= Fields!HCO_CODE.Value</Value>
+                                      <MarkupType>HTML</MarkupType>
+                                      <Style>
+                                        <FontFamily>Segoe UI Light</FontFamily>
+                                        <FontWeight>=iif(Fields!RDD_READY.Value is nothing ,"SemiBold", iif(Fields!RDD_READY.Value = 0, "Default","SemiBold"))</FontWeight>
+                                        <TextDecoration>None</TextDecoration>
+                                        <Color>=iif(Not(IsNothing(Fields!fp_year_month.Value)), 
+		iif(Fields!cnt_year_month.Value = 1
+      , "#828282"
+      , ""
+      )
+	, iif(Fields!FactReady.Value = 1, 
+	iif((isNothing(Fields!fp_year_month.Value))
+		, "White", ""),"")
+	)</Color>
+                                      </Style>
+                                    </TextRun>
+                                  </TextRuns>
+                                  <Style>
+                                    <TextAlign>Center</TextAlign>
+                                  </Style>
+                                </Paragraph>
+                              </Paragraphs>
+                              <rd:DefaultName>Textbox2</rd:DefaultName>
+                              <ActionInfo>
+                                <Actions>
+                                  <Action>
+                                    <Drillthrough>
+                                      <ReportName>3TL_Dashboard</ReportName>
+                                      <Parameters>
+                                        <Parameter Name="HCO_CODE">
+                                          <Value>=Fields!HCO_CODE.Value</Value>
+                                        </Parameter>
+                                        <Parameter Name="YEAR_MONTH">
+                                          <Value>=Fields!YEAR_MONTH.Value</Value>
+                                        </Parameter>
+                                      </Parameters>
+                                    </Drillthrough>
+                                  </Action>
+                                </Actions>
+                              </ActionInfo>
+                              <ToolTip>=Fields!HCO_NAME.Value</ToolTip>
+                              <Style>
+                                <Border>
+                                  <Color>#525252</Color>
+                                  <Style>Solid</Style>
+                                  <Width>1.5pt</Width>
+                                </Border>
+                                <BackgroundColor>=iif(not(IsNothing(Fields!fp_year_month.Value)), "#3bceac", "#ee4266")</BackgroundColor>
+                                <PaddingLeft>2pt</PaddingLeft>
+                                <PaddingRight>2pt</PaddingRight>
+                                <PaddingTop>2pt</PaddingTop>
+                                <PaddingBottom>2pt</PaddingBottom>
+                              </Style>
+                            </Textbox>
+                          </CellContents>
+                        </TablixCell>
+                      </TablixCells>
+                    </TablixRow>
+                  </TablixRows>
+                </TablixBody>
+                <TablixColumnHierarchy>
+                  <TablixMembers>
+                    <TablixMember>
+                      <Group Name="YEAR_MONTH8">
+                        <GroupExpressions>
+                          <GroupExpression>=Fields!YEAR_MONTH.Value</GroupExpression>
+                        </GroupExpressions>
+                      </Group>
+                      <SortExpressions>
+                        <SortExpression>
+                          <Value>=Fields!YEAR_MONTH.Value</Value>
+                        </SortExpression>
+                      </SortExpressions>
+                      <TablixMembers>
+                        <TablixMember>
+                          <Group Name="YEAR_MONTH9">
+                            <GroupExpressions>
+                              <GroupExpression>=Fields!YEAR_MONTH.Value</GroupExpression>
+                            </GroupExpressions>
+                          </Group>
+                          <SortExpressions>
+                            <SortExpression>
+                              <Value>=Fields!YEAR_MONTH.Value</Value>
+                            </SortExpression>
+                          </SortExpressions>
+                          <TablixHeader>
+                            <Size>0.27863in</Size>
+                            <CellContents>
+                              <Textbox Name="Textbox57">
+                                <CanGrow>true</CanGrow>
+                                <CanShrink>true</CanShrink>
+                                <KeepTogether>true</KeepTogether>
+                                <Paragraphs>
+                                  <Paragraph>
+                                    <TextRuns>
+                                      <TextRun>
+                                        <Value>=Fields!MONTH_YEAR.Value</Value>
+                                        <Style>
+                                          <FontSize>11pt</FontSize>
+                                          <FontWeight>Normal</FontWeight>
+                                          <TextDecoration>None</TextDecoration>
+                                          <Color>#fe9666</Color>
+                                        </Style>
+                                      </TextRun>
+                                    </TextRuns>
+                                    <Style>
+                                      <TextAlign>Center</TextAlign>
+                                    </Style>
+                                  </Paragraph>
+                                </Paragraphs>
+                                <rd:DefaultName>Textbox52</rd:DefaultName>
+                                <Style>
+                                  <Border>
+                                    <Style>None</Style>
+                                  </Border>
+                                  <BackgroundColor>#525252</BackgroundColor>
+                                  <PaddingLeft>2pt</PaddingLeft>
+                                  <PaddingRight>2pt</PaddingRight>
+                                  <PaddingTop>2pt</PaddingTop>
+                                  <PaddingBottom>2pt</PaddingBottom>
+                                </Style>
+                              </Textbox>
+                            </CellContents>
+                          </TablixHeader>
+                          <TablixMembers>
+                            <TablixMember>
+                              <Visibility>
+                                <Hidden>=SWITCH(LEFT(Fields!MONTH_YEAR.Value,2) = "01",False,
+LEFT(Fields!MONTH_YEAR.Value,2) = "04", False, 
+LEFT(Fields!MONTH_YEAR.Value,2) = "07", False, 
+LEFT(Fields!MONTH_YEAR.Value,2) = "10", False,
+LEFT(Fields!MONTH_YEAR.Value,2) = "02", True,
+LEFT(Fields!MONTH_YEAR.Value,2) = "03", True,
+LEFT(Fields!MONTH_YEAR.Value,2) = "05", True,
+LEFT(Fields!MONTH_YEAR.Value,2) = "06", True,
+LEFT(Fields!MONTH_YEAR.Value,2) = "08", True,
+LEFT(Fields!MONTH_YEAR.Value,2) = "09", True,
+LEFT(Fields!MONTH_YEAR.Value,2) = "11", True,
+LEFT(Fields!MONTH_YEAR.Value,2) = "12", True
+)</Hidden>
+                              </Visibility>
+                            </TablixMember>
+                            <TablixMember />
+                          </TablixMembers>
+                        </TablixMember>
+                      </TablixMembers>
+                    </TablixMember>
+                  </TablixMembers>
+                </TablixColumnHierarchy>
+                <TablixRowHierarchy>
+                  <TablixMembers>
+                    <TablixMember>
+                      <Group Name="HCO_CODE5">
+                        <GroupExpressions>
+                          <GroupExpression>=Fields!HCO_CODE.Value</GroupExpression>
+                        </GroupExpressions>
+                      </Group>
+                      <SortExpressions>
+                        <SortExpression>
+                          <Value>=Fields!HCO_CODE.Value</Value>
+                        </SortExpression>
+                      </SortExpressions>
+                      <TablixMembers>
+                        <TablixMember>
+                          <Group Name="HCO_NAME6">
+                            <GroupExpressions>
+                              <GroupExpression>=Fields!HCO_NAME.Value</GroupExpression>
+                            </GroupExpressions>
+                          </Group>
+                          <SortExpressions>
+                            <SortExpression>
+                              <Value>=Fields!HCO_NAME.Value</Value>
+                            </SortExpression>
+                          </SortExpressions>
+                        </TablixMember>
+                      </TablixMembers>
+                    </TablixMember>
+                  </TablixMembers>
+                </TablixRowHierarchy>
+                <DataSetName>get_3TL_Tracker</DataSetName>
+                <Top>0.18141in</Top>
+                <Height>0.52601in</Height>
+                <Width>0.63541in</Width>
+                <Style>
+                  <Border>
+                    <Style>None</Style>
+                  </Border>
+                  <LeftBorder>
+                    <Style>None</Style>
+                  </LeftBorder>
+                  <FontFamily>Segoe UI Light</FontFamily>
+                </Style>
+              </Tablix>
+              <Textbox Name="HCO_CODE1">
+                <CanGrow>true</CanGrow>
+                <KeepTogether>true</KeepTogether>
+                <Paragraphs>
+                  <Paragraph>
+                    <TextRuns>
+                      <TextRun>
+                        <Value>3TL Dashboard</Value>
+                        <Style>
+                          <FontFamily>Segoe UI Light</FontFamily>
+                          <FontSize>26pt</FontSize>
+                          <FontWeight>Bold</FontWeight>
+                          <Color>#fe9666</Color>
+                        </Style>
+                      </TextRun>
+                    </TextRuns>
+                    <Style>
+                      <TextAlign>Left</TextAlign>
+                    </Style>
+                  </Paragraph>
+                </Paragraphs>
+                <rd:DefaultName>HCO_CODE1</rd:DefaultName>
+                <Height>0.15363in</Height>
+                <Width>2.61111in</Width>
+                <ZIndex>1</ZIndex>
+                <Style>
+                  <Border>
+                    <Color>#fe9666</Color>
+                    <Style>None</Style>
+                  </Border>
+                  <BackgroundColor>#525252</BackgroundColor>
+                  <VerticalAlign>Middle</VerticalAlign>
+                  <PaddingLeft>2pt</PaddingLeft>
+                  <PaddingRight>2pt</PaddingRight>
+                  <PaddingTop>2pt</PaddingTop>
+                  <PaddingBottom>2pt</PaddingBottom>
+                </Style>
+              </Textbox>
+              <Tablix Name="Tablix1">
+                <TablixBody>
+                  <TablixColumns>
+                    <TablixColumn>
+                      <Width>0.4375in</Width>
+                    </TablixColumn>
+                    <TablixColumn>
+                      <Width>0.92361in</Width>
+                    </TablixColumn>
+                    <TablixColumn>
+                      <Width>0.4375in</Width>
+                    </TablixColumn>
+                    <TablixColumn>
+                      <Width>0.82292in</Width>
+                    </TablixColumn>
+                    <TablixColumn>
+                      <Width>0.4375in</Width>
+                    </TablixColumn>
+                    <TablixColumn>
+                      <Width>0.79167in</Width>
+                    </TablixColumn>
+                    <TablixColumn>
+                      <Width>0.4375in</Width>
+                    </TablixColumn>
+                    <TablixColumn>
+                      <Width>0.55209in</Width>
+                    </TablixColumn>
+                    <TablixColumn>
+                      <Width>0.4375in</Width>
+                    </TablixColumn>
+                    <TablixColumn>
+                      <Width>0.82292in</Width>
+                    </TablixColumn>
+                  </TablixColumns>
+                  <TablixRows>
+                    <TablixRow>
+                      <Height>0.34375in</Height>
+                      <TablixCells>
+                        <TablixCell>
+                          <CellContents>
+                            <Textbox Name="Textbox1">
+                              <CanGrow>true</CanGrow>
+                              <KeepTogether>true</KeepTogether>
+                              <Paragraphs>
+                                <Paragraph>
+                                  <TextRuns>
+                                    <TextRun>
+                                      <Value>VSE</Value>
+                                      <Style>
+                                        <FontSize>9pt</FontSize>
+                                        <FontWeight>Bold</FontWeight>
+                                      </Style>
+                                    </TextRun>
+                                  </TextRuns>
+                                  <Style>
+                                    <TextAlign>Center</TextAlign>
+                                  </Style>
+                                </Paragraph>
+                              </Paragraphs>
+                              <rd:DefaultName>Textbox1</rd:DefaultName>
+                              <Style>
+                                <Border>
+                                  <Color>LightGrey</Color>
+                                  <Style>None</Style>
+                                </Border>
+                                <BackgroundColor>#3bceac</BackgroundColor>
+                                <VerticalAlign>Middle</VerticalAlign>
+                                <PaddingLeft>2pt</PaddingLeft>
+                                <PaddingRight>2pt</PaddingRight>
+                                <PaddingTop>2pt</PaddingTop>
+                                <PaddingBottom>2pt</PaddingBottom>
+                              </Style>
+                            </Textbox>
+                          </CellContents>
+                        </TablixCell>
+                        <TablixCell>
+                          <CellContents>
+                            <Textbox Name="Textbox3">
+                              <CanGrow>true</CanGrow>
+                              <KeepTogether>true</KeepTogether>
+                              <Paragraphs>
+                                <Paragraph>
+                                  <TextRuns>
+                                    <TextRun>
+                                      <Value>Fact Loaded, Post-Outcome</Value>
+                                      <Style>
+                                        <FontSize>8pt</FontSize>
+                                        <Color>White</Color>
+                                      </Style>
+                                    </TextRun>
+                                  </TextRuns>
+                                  <Style />
+                                </Paragraph>
+                              </Paragraphs>
+                              <rd:DefaultName>Textbox3</rd:DefaultName>
+                              <Style>
+                                <Border>
+                                  <Color>LightGrey</Color>
+                                  <Style>None</Style>
+                                </Border>
+                                <PaddingLeft>2pt</PaddingLeft>
+                                <PaddingRight>2pt</PaddingRight>
+                                <PaddingTop>2pt</PaddingTop>
+                                <PaddingBottom>2pt</PaddingBottom>
+                              </Style>
+                            </Textbox>
+                          </CellContents>
+                        </TablixCell>
+                        <TablixCell>
+                          <CellContents>
+                            <Textbox Name="Textbox5">
+                              <CanGrow>true</CanGrow>
+                              <KeepTogether>true</KeepTogether>
+                              <Paragraphs>
+                                <Paragraph>
+                                  <TextRuns>
+                                    <TextRun>
+                                      <Value>VSE</Value>
+                                      <Style>
+                                        <FontSize>9pt</FontSize>
+                                        <FontWeight>Normal</FontWeight>
+                                      </Style>
+                                    </TextRun>
+                                  </TextRuns>
+                                  <Style>
+                                    <TextAlign>Center</TextAlign>
+                                  </Style>
+                                </Paragraph>
+                              </Paragraphs>
+                              <rd:DefaultName>Textbox5</rd:DefaultName>
+                              <Style>
+                                <Border>
+                                  <Color>LightGrey</Color>
+                                  <Style>None</Style>
+                                </Border>
+                                <BackgroundColor>#3bceac</BackgroundColor>
+                                <VerticalAlign>Middle</VerticalAlign>
+                                <PaddingLeft>2pt</PaddingLeft>
+                                <PaddingRight>2pt</PaddingRight>
+                                <PaddingTop>2pt</PaddingTop>
+                                <PaddingBottom>2pt</PaddingBottom>
+                              </Style>
+                            </Textbox>
+                          </CellContents>
+                        </TablixCell>
+                        <TablixCell>
+                          <CellContents>
+                            <Textbox Name="Textbox71">
+                              <CanGrow>true</CanGrow>
+                              <KeepTogether>true</KeepTogether>
+                              <Paragraphs>
+                                <Paragraph>
+                                  <TextRuns>
+                                    <TextRun>
+                                      <Value>Fact Loaded, Pre-Outcome</Value>
+                                      <Style>
+                                        <FontSize>8pt</FontSize>
+                                        <Color>White</Color>
+                                      </Style>
+                                    </TextRun>
+                                  </TextRuns>
+                                  <Style />
+                                </Paragraph>
+                              </Paragraphs>
+                              <rd:DefaultName>Textbox71</rd:DefaultName>
+                              <Style>
+                                <Border>
+                                  <Color>LightGrey</Color>
+                                  <Style>None</Style>
+                                </Border>
+                                <PaddingLeft>2pt</PaddingLeft>
+                                <PaddingRight>2pt</PaddingRight>
+                                <PaddingTop>2pt</PaddingTop>
+                                <PaddingBottom>2pt</PaddingBottom>
+                              </Style>
+                            </Textbox>
+                          </CellContents>
+                        </TablixCell>
+                        <TablixCell>
+                          <CellContents>
+                            <Textbox Name="Textbox70">
+                              <CanGrow>true</CanGrow>
+                              <KeepTogether>true</KeepTogether>
+                              <Paragraphs>
+                                <Paragraph>
+                                  <TextRuns>
+                                    <TextRun>
+                                      <Value>VSE</Value>
+                                      <Style>
+                                        <FontSize>9pt</FontSize>
+                                        <FontWeight>Bold</FontWeight>
+                                        <Color>#828282</Color>
+                                      </Style>
+                                    </TextRun>
+                                  </TextRuns>
+                                  <Style>
+                                    <TextAlign>Center</TextAlign>
+                                  </Style>
+                                </Paragraph>
+                              </Paragraphs>
+                              <rd:DefaultName>Textbox70</rd:DefaultName>
+                              <Style>
+                                <Border>
+                                  <Color>LightGrey</Color>
+                                  <Style>None</Style>
+                                </Border>
+                                <BackgroundColor>#3bceac</BackgroundColor>
+                                <VerticalAlign>Middle</VerticalAlign>
+                                <PaddingLeft>2pt</PaddingLeft>
+                                <PaddingRight>2pt</PaddingRight>
+                                <PaddingTop>2pt</PaddingTop>
+                                <PaddingBottom>2pt</PaddingBottom>
+                              </Style>
+                            </Textbox>
+                          </CellContents>
+                        </TablixCell>
+                        <TablixCell>
+                          <CellContents>
+                            <Textbox Name="Textbox8">
+                              <CanGrow>true</CanGrow>
+                              <KeepTogether>true</KeepTogether>
+                              <Paragraphs>
+                                <Paragraph>
+                                  <TextRuns>
+                                    <TextRun>
+                                      <Value>Fact Loaded, Partial Load</Value>
+                                      <Style>
+                                        <FontSize>8pt</FontSize>
+                                        <Color>White</Color>
+                                      </Style>
+                                    </TextRun>
+                                  </TextRuns>
+                                  <Style />
+                                </Paragraph>
+                              </Paragraphs>
+                              <rd:DefaultName>Textbox8</rd:DefaultName>
+                              <Style>
+                                <Border>
+                                  <Color>LightGrey</Color>
+                                  <Style>None</Style>
+                                </Border>
+                                <PaddingLeft>2pt</PaddingLeft>
+                                <PaddingRight>2pt</PaddingRight>
+                                <PaddingTop>2pt</PaddingTop>
+                                <PaddingBottom>2pt</PaddingBottom>
+                              </Style>
+                            </Textbox>
+                          </CellContents>
+                        </TablixCell>
+                        <TablixCell>
+                          <CellContents>
+                            <Textbox Name="Textbox9">
+                              <CanGrow>true</CanGrow>
+                              <KeepTogether>true</KeepTogether>
+                              <Paragraphs>
+                                <Paragraph>
+                                  <TextRuns>
+                                    <TextRun>
+                                      <Value>VSE</Value>
+                                      <Style>
+                                        <FontSize>9pt</FontSize>
+                                        <FontWeight>Bold</FontWeight>
+                                      </Style>
+                                    </TextRun>
+                                  </TextRuns>
+                                  <Style>
+                                    <TextAlign>Center</TextAlign>
+                                  </Style>
+                                </Paragraph>
+                              </Paragraphs>
+                              <rd:DefaultName>Textbox9</rd:DefaultName>
+                              <Style>
+                                <Border>
+                                  <Color>LightGrey</Color>
+                                  <Style>None</Style>
+                                </Border>
+                                <BackgroundColor>#ee4266</BackgroundColor>
+                                <VerticalAlign>Middle</VerticalAlign>
+                                <PaddingLeft>2pt</PaddingLeft>
+                                <PaddingRight>2pt</PaddingRight>
+                                <PaddingTop>2pt</PaddingTop>
+                                <PaddingBottom>2pt</PaddingBottom>
+                              </Style>
+                            </Textbox>
+                          </CellContents>
+                        </TablixCell>
+                        <TablixCell>
+                          <CellContents>
+                            <Textbox Name="Textbox10">
+                              <CanGrow>true</CanGrow>
+                              <KeepTogether>true</KeepTogether>
+                              <Paragraphs>
+                                <Paragraph>
+                                  <TextRuns>
+                                    <TextRun>
+                                      <Value>Fact Not Loaded</Value>
+                                      <Style>
+                                        <FontSize>8pt</FontSize>
+                                        <Color>White</Color>
+                                      </Style>
+                                    </TextRun>
+                                  </TextRuns>
+                                  <Style />
+                                </Paragraph>
+                              </Paragraphs>
+                              <rd:DefaultName>Textbox10</rd:DefaultName>
+                              <Style>
+                                <Border>
+                                  <Color>LightGrey</Color>
+                                  <Style>None</Style>
+                                </Border>
+                                <PaddingLeft>2pt</PaddingLeft>
+                                <PaddingRight>2pt</PaddingRight>
+                                <PaddingTop>2pt</PaddingTop>
+                                <PaddingBottom>2pt</PaddingBottom>
+                              </Style>
+                            </Textbox>
+                          </CellContents>
+                        </TablixCell>
+                        <TablixCell>
+                          <CellContents>
+                            <Textbox Name="Textbox11">
+                              <CanGrow>true</CanGrow>
+                              <KeepTogether>true</KeepTogether>
+                              <Paragraphs>
+                                <Paragraph>
+                                  <TextRuns>
+                                    <TextRun>
+                                      <Value>VSE</Value>
+                                      <Style>
+                                        <FontSize>9pt</FontSize>
+                                        <FontWeight>Bold</FontWeight>
+                                        <Color>White</Color>
+                                      </Style>
+                                    </TextRun>
+                                  </TextRuns>
+                                  <Style>
+                                    <TextAlign>Center</TextAlign>
+                                  </Style>
+                                </Paragraph>
+                              </Paragraphs>
+                              <rd:DefaultName>Textbox11</rd:DefaultName>
+                              <Style>
+                                <Border>
+                                  <Color>LightGrey</Color>
+                                  <Style>None</Style>
+                                </Border>
+                                <BackgroundColor>#ee4266</BackgroundColor>
+                                <VerticalAlign>Middle</VerticalAlign>
+                                <PaddingLeft>2pt</PaddingLeft>
+                                <PaddingRight>2pt</PaddingRight>
+                                <PaddingTop>2pt</PaddingTop>
+                                <PaddingBottom>2pt</PaddingBottom>
+                              </Style>
+                            </Textbox>
+                          </CellContents>
+                        </TablixCell>
+                        <TablixCell>
+                          <CellContents>
+                            <Textbox Name="Textbox12">
+                              <CanGrow>true</CanGrow>
+                              <KeepTogether>true</KeepTogether>
+                              <Paragraphs>
+                                <Paragraph>
+                                  <TextRuns>
+                                    <TextRun>
+                                      <Value>Fact Ready to Load</Value>
+                                      <Style>
+                                        <FontSize>8pt</FontSize>
+                                        <Color>White</Color>
+                                      </Style>
+                                    </TextRun>
+                                  </TextRuns>
+                                  <Style />
+                                </Paragraph>
+                              </Paragraphs>
+                              <rd:DefaultName>Textbox12</rd:DefaultName>
+                              <Style>
+                                <Border>
+                                  <Color>LightGrey</Color>
+                                  <Style>None</Style>
+                                </Border>
+                                <PaddingLeft>2pt</PaddingLeft>
+                                <PaddingRight>2pt</PaddingRight>
+                                <PaddingTop>2pt</PaddingTop>
+                                <PaddingBottom>2pt</PaddingBottom>
+                              </Style>
+                            </Textbox>
+                          </CellContents>
+                        </TablixCell>
+                      </TablixCells>
+                    </TablixRow>
+                  </TablixRows>
+                </TablixBody>
+                <TablixColumnHierarchy>
+                  <TablixMembers>
+                    <TablixMember />
+                    <TablixMember />
+                    <TablixMember />
+                    <TablixMember />
+                    <TablixMember />
+                    <TablixMember />
+                    <TablixMember />
+                    <TablixMember />
+                    <TablixMember />
+                    <TablixMember />
+                  </TablixMembers>
+                </TablixColumnHierarchy>
+                <TablixRowHierarchy>
+                  <TablixMembers>
+                    <TablixMember />
+                  </TablixMembers>
+                </TablixRowHierarchy>
+                <DataSetName>get_3TL_Tracker</DataSetName>
+                <Top>0.91923in</Top>
+                <Left>0.03125in</Left>
+                <Height>0.34375in</Height>
+                <Width>6.10071in</Width>
+                <ZIndex>2</ZIndex>
+                <Style>
+                  <Border>
+                    <Style>None</Style>
+                  </Border>
+                </Style>
+              </Tablix>
+            </ReportItems>
+            <KeepTogether>true</KeepTogether>
+            <Top>0.125in</Top>
+            <Left>0.08333in</Left>
+            <Height>1.26298in</Height>
+            <Width>6.60069in</Width>
+            <ZIndex>1</ZIndex>
+            <Style>
+              <Border>
+                <Style>None</Style>
+              </Border>
+            </Style>
+          </Rectangle>
+        </ReportItems>
+        <Height>10.84461in</Height>
+        <Style>
+          <Border>
+            <Style>None</Style>
+          </Border>
+          <BackgroundColor>#525252</BackgroundColor>
+        </Style>
+      </Body>
+      <Width>15.37152in</Width>
+      <Page>
+        <PageHeight>16in</PageHeight>
+        <PageWidth>14in</PageWidth>
+        <LeftMargin>1in</LeftMargin>
+        <RightMargin>1in</RightMargin>
+        <TopMargin>1in</TopMargin>
+        <BottomMargin>1in</BottomMargin>
+        <Style>
+          <BackgroundColor>#525252</BackgroundColor>
+        </Style>
+      </Page>
+    </ReportSection>
+  </ReportSections>
+  <ReportParameters>
+    <ReportParameter Name="HCO_CODE">
+      <DataType>String</DataType>
+      <Nullable>true</Nullable>
+      <AllowBlank>true</AllowBlank>
+      <Prompt>HCO CODE</Prompt>
+      <Hidden>true</Hidden>
+    </ReportParameter>
+    <ReportParameter Name="YEAR_MONTH">
+      <DataType>String</DataType>
+      <Nullable>true</Nullable>
+      <AllowBlank>true</AllowBlank>
+      <Prompt>YEAR_MONTH</Prompt>
+      <Hidden>true</Hidden>
+    </ReportParameter>
+  </ReportParameters>
+  <ReportParametersLayout>
+    <GridLayoutDefinition>
+      <NumberOfColumns>4</NumberOfColumns>
+      <NumberOfRows>2</NumberOfRows>
+      <CellDefinitions>
+        <CellDefinition>
+          <ColumnIndex>0</ColumnIndex>
+          <RowIndex>0</RowIndex>
+          <ParameterName>HCO_CODE</ParameterName>
+        </CellDefinition>
+        <CellDefinition>
+          <ColumnIndex>1</ColumnIndex>
+          <RowIndex>0</RowIndex>
+          <ParameterName>YEAR_MONTH</ParameterName>
+        </CellDefinition>
+      </CellDefinitions>
+    </GridLayoutDefinition>
+  </ReportParametersLayout>
+  <rd:ReportUnitType>Inch</rd:ReportUnitType>
+  <rd:ReportID>c2fc8817-f825-4c02-972d-e12300938a0e</rd:ReportID>
+</Report>
+
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+-- 3TL_Detail_V2 --
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////-->
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+
+<?xml version="1.0" encoding="utf-8"?>
+<Report MustUnderstand="df" xmlns="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition" xmlns:rd="http://schemas.microsoft.com/SQLServer/reporting/reportdesigner" xmlns:df="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition/defaultfontfamily">
+  <df:DefaultFontFamily>Segoe UI</df:DefaultFontFamily>
+  <AutoRefresh>0</AutoRefresh>
+  <DataSources>
+    <DataSource Name="GLOBAL">
+      <DataSourceReference>GLOBAL</DataSourceReference>
+      <rd:SecurityType>None</rd:SecurityType>
+      <rd:DataSourceID>6487938d-8f8f-43d9-bd7d-ac4779ecff4d</rd:DataSourceID>
+    </DataSource>
+  </DataSources>
+  <DataSets>
+    <DataSet Name="get_3TL_Detail">
+      <Query>
+        <DataSourceName>GLOBAL</DataSourceName>
+        <QueryParameters>
+          <QueryParameter Name="@HCO_CODE">
+            <Value>=Parameters!HCO_CODE.Value</Value>
+            <rd:UserDefined>true</rd:UserDefined>
+          </QueryParameter>
+        </QueryParameters>
+        <CommandText>select HCO_CODE, [3TL_YN]
+from refHCO
+where [3TL_YN] &lt;&gt; 0
+and HCO_CODE = @HCO_CODE</CommandText>
+      </Query>
+      <Fields>
+        <Field Name="HCO_CODE">
+          <DataField>HCO_CODE</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+        <Field Name="ID3TL_YN">
+          <DataField>3TL_YN</DataField>
+          <rd:TypeName>System.Byte</rd:TypeName>
+        </Field>
+      </Fields>
+    </DataSet>
+  </DataSets>
+  <ReportSections>
+    <ReportSection>
+      <Body>
+        <ReportItems>
+          <Subreport Name="HCO_Detail_V2">
+            <ReportName>HCO_Detail_V2</ReportName>
+            <Parameters>
+              <Parameter Name="HCO_CODE">
+                <Value>=Parameters!HCO_CODE.Value</Value>
+              </Parameter>
+              <Parameter Name="YEAR_MONTH">
+                <Value>=Parameters!YEAR_MONTH.Value</Value>
+              </Parameter>
+            </Parameters>
+            <Top>0.47222in</Top>
+            <Height>0.76042in</Height>
+            <Width>4.97916in</Width>
+            <Style>
+              <Border>
+                <Style>None</Style>
+              </Border>
+            </Style>
+          </Subreport>
+          <Subreport Name="Fact_Calendar_V2">
+            <ReportName>Fact_Calendar_V2</ReportName>
+            <Parameters>
+              <Parameter Name="HCO_CODE">
+                <Value>=Parameters!HCO_CODE.Value</Value>
+              </Parameter>
+              <Parameter Name="YEAR_MONTH">
+                <Value>=Parameters!YEAR_MONTH.Value</Value>
+              </Parameter>
+            </Parameters>
+            <Top>1.30208in</Top>
+            <Left>2.90624in</Left>
+            <Height>1.1875in</Height>
+            <Width>2.04167in</Width>
+            <ZIndex>1</ZIndex>
+            <Style>
+              <Border>
+                <Style>None</Style>
+              </Border>
+            </Style>
+          </Subreport>
+          <Subreport Name="Subreport1">
+            <ReportName>Mini_Tracker_V2</ReportName>
+            <Parameters>
+              <Parameter Name="HCO_CODE">
+                <Value>=Parameters!HCO_CODE.Value</Value>
+              </Parameter>
+              <Parameter Name="YEAR_MONTH">
+                <Value>=Parameters!YEAR_MONTH.Value</Value>
+              </Parameter>
+            </Parameters>
+            <Top>1.26042in</Top>
+            <Height>1.87812in</Height>
+            <Width>2.5in</Width>
+            <ZIndex>2</ZIndex>
+            <Style>
+              <Border>
+                <Style>None</Style>
+              </Border>
+            </Style>
+          </Subreport>
+          <Subreport Name="Correspondence_V2">
+            <ReportName>Correspondence_V2</ReportName>
+            <Parameters>
+              <Parameter Name="HCO_CODE">
+                <Value>=Parameters!HCO_CODE.Value</Value>
+              </Parameter>
+              <Parameter Name="YEAR_MONTH">
+                <Value>=Parameters!YEAR_MONTH.Value</Value>
+              </Parameter>
+            </Parameters>
+            <Top>3.53125in</Top>
+            <Height>6.38542in</Height>
+            <Width>4.97916in</Width>
+            <ZIndex>3</ZIndex>
+            <Style>
+              <Border>
+                <Style>None</Style>
+              </Border>
+            </Style>
+          </Subreport>
+          <Textbox Name="HCO_CODE1">
+            <CanGrow>true</CanGrow>
+            <KeepTogether>true</KeepTogether>
+            <Paragraphs>
+              <Paragraph>
+                <TextRuns>
+                  <TextRun>
+                    <Value>3TL Detail</Value>
+                    <Style>
+                      <FontFamily>Segoe UI Light</FontFamily>
+                      <FontSize>22pt</FontSize>
+                      <FontWeight>Bold</FontWeight>
+                      <Color>#fe9666</Color>
+                    </Style>
+                  </TextRun>
+                </TextRuns>
+                <Style>
+                  <TextAlign>Left</TextAlign>
+                </Style>
+              </Paragraph>
+            </Paragraphs>
+            <rd:DefaultName>HCO_CODE1</rd:DefaultName>
+            <Top>0.02778in</Top>
+            <Height>0.44444in</Height>
+            <Width>4.97916in</Width>
+            <ZIndex>4</ZIndex>
+            <Style>
+              <Border>
+                <Style>None</Style>
+              </Border>
+              <BackgroundColor>#525252</BackgroundColor>
+              <VerticalAlign>Middle</VerticalAlign>
+              <PaddingLeft>2pt</PaddingLeft>
+              <PaddingRight>2pt</PaddingRight>
+              <PaddingTop>2pt</PaddingTop>
+              <PaddingBottom>2pt</PaddingBottom>
+            </Style>
+          </Textbox>
+        </ReportItems>
+        <Height>10.62153in</Height>
+        <Style>
+          <BackgroundColor>#525252</BackgroundColor>
+        </Style>
+      </Body>
+      <Width>4.97916in</Width>
+      <Page>
+        <LeftMargin>1in</LeftMargin>
+        <RightMargin>1in</RightMargin>
+        <TopMargin>1in</TopMargin>
+        <BottomMargin>1in</BottomMargin>
+        <Style />
+      </Page>
+    </ReportSection>
+  </ReportSections>
+  <ReportParameters>
+    <ReportParameter Name="HCO_CODE">
+      <DataType>String</DataType>
+      <Prompt>HCO CODE</Prompt>
+    </ReportParameter>
+    <ReportParameter Name="YEAR_MONTH">
+      <DataType>String</DataType>
+      <Prompt>YEAR_MONTH</Prompt>
+    </ReportParameter>
+  </ReportParameters>
+  <ReportParametersLayout>
+    <GridLayoutDefinition>
+      <NumberOfColumns>4</NumberOfColumns>
+      <NumberOfRows>2</NumberOfRows>
+      <CellDefinitions>
+        <CellDefinition>
+          <ColumnIndex>0</ColumnIndex>
+          <RowIndex>0</RowIndex>
+          <ParameterName>HCO_CODE</ParameterName>
+        </CellDefinition>
+        <CellDefinition>
+          <ColumnIndex>1</ColumnIndex>
+          <RowIndex>0</RowIndex>
+          <ParameterName>YEAR_MONTH</ParameterName>
+        </CellDefinition>
+      </CellDefinitions>
+    </GridLayoutDefinition>
+  </ReportParametersLayout>
+  <rd:ReportUnitType>Inch</rd:ReportUnitType>
+  <rd:ReportID>df9fca2d-9276-40d4-a8f1-6987b0710369</rd:ReportID>
+</Report>
+
+
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+-- Correspondence_V2 --
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////-->
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+
+<?xml version="1.0" encoding="utf-8"?>
+<Report MustUnderstand="df" xmlns="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition" xmlns:rd="http://schemas.microsoft.com/SQLServer/reporting/reportdesigner" xmlns:df="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition/defaultfontfamily">
+  <df:DefaultFontFamily>Segoe UI</df:DefaultFontFamily>
+  <AutoRefresh>0</AutoRefresh>
+  <DataSources>
+    <DataSource Name="DATA_TRACKER">
+      <DataSourceReference>DATA_TRACKER</DataSourceReference>
+      <rd:SecurityType>None</rd:SecurityType>
+      <rd:DataSourceID>24251675-a0ec-40a4-8d3d-0cb81a2b4eb4</rd:DataSourceID>
+    </DataSource>
+  </DataSources>
+  <DataSets>
+    <DataSet Name="Correspondence">
+      <Query>
+        <DataSourceName>DATA_TRACKER</DataSourceName>
+        <QueryParameters>
+          <QueryParameter Name="@HCO_CODE">
+            <Value>=Parameters!HCO_CODE.Value</Value>
+          </QueryParameter>
+          <QueryParameter Name="@YEAR_MONTH">
+            <Value>=Parameters!YEAR_MONTH.Value</Value>
+          </QueryParameter>
+        </QueryParameters>
+        <CommandText>select * from CORRESPONDENCE
+WHERE HCO_CODE = @HCO_CODE
+and YEAR_MONTH = @YEAR_MONTH</CommandText>
+      </Query>
+      <Fields>
+        <Field Name="HCO_CODE">
+          <DataField>HCO_CODE</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+        <Field Name="YEAR_MONTH">
+          <DataField>YEAR_MONTH</DataField>
+          <rd:TypeName>System.Int32</rd:TypeName>
+        </Field>
+        <Field Name="ENTRY_DATE">
+          <DataField>ENTRY_DATE</DataField>
+          <rd:TypeName>System.DateTime</rd:TypeName>
+        </Field>
+        <Field Name="NOTES">
+          <DataField>NOTES</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+      </Fields>
+    </DataSet>
+  </DataSets>
+  <ReportSections>
+    <ReportSection>
+      <Body>
+        <ReportItems>
+          <Tablix Name="Tablix1">
+            <TablixBody>
+              <TablixColumns>
+                <TablixColumn>
+                  <Width>0.90104in</Width>
+                </TablixColumn>
+                <TablixColumn>
+                  <Width>3.72396in</Width>
+                </TablixColumn>
+                <TablixColumn>
+                  <Width>0.64583in</Width>
+                </TablixColumn>
+              </TablixColumns>
+              <TablixRows>
+                <TablixRow>
+                  <Height>0.29167in</Height>
+                  <TablixCells>
+                    <TablixCell>
+                      <CellContents>
+                        <Textbox Name="Textbox6">
+                          <CanGrow>true</CanGrow>
+                          <KeepTogether>true</KeepTogether>
+                          <Paragraphs>
+                            <Paragraph>
+                              <TextRuns>
+                                <TextRun>
+                                  <Value>Entry Date</Value>
+                                  <Style>
+                                    <FontFamily>Segoe UI Light</FontFamily>
+                                    <FontSize>11pt</FontSize>
+                                    <FontWeight>Normal</FontWeight>
+                                    <Color>#fe9666</Color>
+                                  </Style>
+                                </TextRun>
+                              </TextRuns>
+                              <Style>
+                                <TextAlign>Center</TextAlign>
+                              </Style>
+                            </Paragraph>
+                          </Paragraphs>
+                          <rd:DefaultName>Textbox6</rd:DefaultName>
+                          <Style>
+                            <Border>
+                              <Color>#ffb999</Color>
+                              <Style>None</Style>
+                            </Border>
+                            <BottomBorder>
+                              <Style>Solid</Style>
+                            </BottomBorder>
+                            <PaddingLeft>2pt</PaddingLeft>
+                            <PaddingRight>2pt</PaddingRight>
+                            <PaddingTop>2pt</PaddingTop>
+                            <PaddingBottom>2pt</PaddingBottom>
+                          </Style>
+                        </Textbox>
+                      </CellContents>
+                    </TablixCell>
+                    <TablixCell>
+                      <CellContents>
+                        <Textbox Name="Textbox8">
+                          <CanGrow>true</CanGrow>
+                          <KeepTogether>true</KeepTogether>
+                          <Paragraphs>
+                            <Paragraph>
+                              <TextRuns>
+                                <TextRun>
+                                  <Value>Notes</Value>
+                                  <Style>
+                                    <FontFamily>Segoe UI Light</FontFamily>
+                                    <FontSize>11pt</FontSize>
+                                    <FontWeight>Normal</FontWeight>
+                                    <Color>#fe9666</Color>
+                                  </Style>
+                                </TextRun>
+                              </TextRuns>
+                              <Style>
+                                <TextAlign>Center</TextAlign>
+                              </Style>
+                            </Paragraph>
+                          </Paragraphs>
+                          <rd:DefaultName>Textbox8</rd:DefaultName>
+                          <Style>
+                            <Border>
+                              <Color>#ffb999</Color>
+                              <Style>None</Style>
+                            </Border>
+                            <BottomBorder>
+                              <Style>Solid</Style>
+                            </BottomBorder>
+                            <PaddingLeft>2pt</PaddingLeft>
+                            <PaddingRight>2pt</PaddingRight>
+                            <PaddingTop>2pt</PaddingTop>
+                            <PaddingBottom>2pt</PaddingBottom>
+                          </Style>
+                        </Textbox>
+                      </CellContents>
+                    </TablixCell>
+                    <TablixCell>
+                      <CellContents>
+                        <Textbox Name="Textbox3">
+                          <CanGrow>true</CanGrow>
+                          <KeepTogether>true</KeepTogether>
+                          <Paragraphs>
+                            <Paragraph>
+                              <TextRuns>
+                                <TextRun>
+                                  <Value>Batch ID</Value>
+                                  <Style>
+                                    <FontFamily>Segoe UI Light</FontFamily>
+                                    <FontSize>11pt</FontSize>
+                                    <FontWeight>Normal</FontWeight>
+                                    <Color>#fe9666</Color>
+                                  </Style>
+                                </TextRun>
+                              </TextRuns>
+                              <Style>
+                                <TextAlign>Center</TextAlign>
+                              </Style>
+                            </Paragraph>
+                          </Paragraphs>
+                          <rd:DefaultName>Textbox3</rd:DefaultName>
+                          <Style>
+                            <Border>
+                              <Color>#ffb999</Color>
+                              <Style>None</Style>
+                            </Border>
+                            <BottomBorder>
+                              <Style>Solid</Style>
+                            </BottomBorder>
+                            <PaddingLeft>2pt</PaddingLeft>
+                            <PaddingRight>2pt</PaddingRight>
+                            <PaddingTop>2pt</PaddingTop>
+                            <PaddingBottom>2pt</PaddingBottom>
+                          </Style>
+                        </Textbox>
+                      </CellContents>
+                    </TablixCell>
+                  </TablixCells>
+                </TablixRow>
+                <TablixRow>
+                  <Height>0.64584in</Height>
+                  <TablixCells>
+                    <TablixCell>
+                      <CellContents>
+                        <Textbox Name="ENTRY_DATE">
+                          <CanGrow>true</CanGrow>
+                          <KeepTogether>true</KeepTogether>
+                          <Paragraphs>
+                            <Paragraph>
+                              <TextRuns>
+                                <TextRun>
+                                  <Value>=Fields!ENTRY_DATE.Value</Value>
+                                  <Style>
+                                    <FontFamily>Segoe UI Light</FontFamily>
+                                    <FontWeight>Normal</FontWeight>
+                                    <Color>White</Color>
+                                  </Style>
+                                </TextRun>
+                              </TextRuns>
+                              <Style>
+                                <TextAlign>Center</TextAlign>
+                              </Style>
+                            </Paragraph>
+                          </Paragraphs>
+                          <rd:DefaultName>ENTRY_DATE</rd:DefaultName>
+                          <Style>
+                            <Border>
+                              <Color>#ffb999</Color>
+                              <Style>None</Style>
+                            </Border>
+                            <RightBorder>
+                              <Style>Solid</Style>
+                            </RightBorder>
+                            <VerticalAlign>Middle</VerticalAlign>
+                            <PaddingLeft>2pt</PaddingLeft>
+                            <PaddingRight>2pt</PaddingRight>
+                            <PaddingTop>2pt</PaddingTop>
+                            <PaddingBottom>2pt</PaddingBottom>
+                          </Style>
+                        </Textbox>
+                      </CellContents>
+                    </TablixCell>
+                    <TablixCell>
+                      <CellContents>
+                        <Textbox Name="NOTES">
+                          <CanGrow>true</CanGrow>
+                          <KeepTogether>true</KeepTogether>
+                          <Paragraphs>
+                            <Paragraph>
+                              <TextRuns>
+                                <TextRun>
+                                  <Value>=Fields!NOTES.Value</Value>
+                                  <Style>
+                                    <FontFamily>Segoe UI Light</FontFamily>
+                                    <FontWeight>Normal</FontWeight>
+                                    <Color>White</Color>
+                                  </Style>
+                                </TextRun>
+                              </TextRuns>
+                              <Style>
+                                <TextAlign>Left</TextAlign>
+                              </Style>
+                            </Paragraph>
+                          </Paragraphs>
+                          <rd:DefaultName>NOTES</rd:DefaultName>
+                          <Style>
+                            <Border>
+                              <Color>#ffb999</Color>
+                              <Style>None</Style>
+                            </Border>
+                            <RightBorder>
+                              <Style>Solid</Style>
+                            </RightBorder>
+                            <VerticalAlign>Middle</VerticalAlign>
+                            <PaddingLeft>8pt</PaddingLeft>
+                            <PaddingRight>8pt</PaddingRight>
+                            <PaddingTop>2pt</PaddingTop>
+                            <PaddingBottom>2pt</PaddingBottom>
+                          </Style>
+                        </Textbox>
+                      </CellContents>
+                    </TablixCell>
+                    <TablixCell>
+                      <CellContents>
+                        <Textbox Name="NOTES1">
+                          <KeepTogether>true</KeepTogether>
+                          <Paragraphs>
+                            <Paragraph>
+                              <TextRuns>
+                                <TextRun>
+                                  <Value>=iif(Fields!NOTES.Value.Contains("[BATCH PROCESSED]"), mid(Fields!NOTES.Value, 30, 7), Nothing)</Value>
+                                  <Style>
+                                    <FontFamily>Segoe UI Light</FontFamily>
+                                    <FontWeight>Normal</FontWeight>
+                                    <TextDecoration>Underline</TextDecoration>
+                                    <Color>White</Color>
+                                  </Style>
+                                </TextRun>
+                              </TextRuns>
+                              <Style>
+                                <TextAlign>Center</TextAlign>
+                              </Style>
+                            </Paragraph>
+                          </Paragraphs>
+                          <rd:DefaultName>NOTES1</rd:DefaultName>
+                          <ActionInfo>
+                            <Actions>
+                              <Action>
+                                <Hyperlink>="javascript:void(window.open('../reports/ReportViewerPopup.aspx?report=DQR&amp;batchid=" &amp; iif(Fields!NOTES.Value.Contains("[BATCH PROCESSED]"), mid(Fields!NOTES.Value, 30, 7), Nothing) &amp; "','DQR1','menubar=no,width=1000,height=700,toolbar=no,resizable=yes'))"</Hyperlink>
+                              </Action>
+                            </Actions>
+                          </ActionInfo>
+                          <Style>
+                            <Border>
+                              <Style>None</Style>
+                            </Border>
+                            <VerticalAlign>Middle</VerticalAlign>
+                            <PaddingLeft>2pt</PaddingLeft>
+                            <PaddingRight>2pt</PaddingRight>
+                            <PaddingTop>2pt</PaddingTop>
+                            <PaddingBottom>2pt</PaddingBottom>
+                          </Style>
+                        </Textbox>
+                      </CellContents>
+                    </TablixCell>
+                  </TablixCells>
+                </TablixRow>
+              </TablixRows>
+            </TablixBody>
+            <TablixColumnHierarchy>
+              <TablixMembers>
+                <TablixMember />
+                <TablixMember />
+                <TablixMember />
+              </TablixMembers>
+            </TablixColumnHierarchy>
+            <TablixRowHierarchy>
+              <TablixMembers>
+                <TablixMember>
+                  <KeepWithGroup>After</KeepWithGroup>
+                </TablixMember>
+                <TablixMember>
+                  <Group Name="Details" />
+                </TablixMember>
+              </TablixMembers>
+            </TablixRowHierarchy>
+            <DataSetName>Correspondence</DataSetName>
+            <SortExpressions>
+              <SortExpression>
+                <Value>=Fields!ENTRY_DATE.Value</Value>
+                <Direction>Descending</Direction>
+              </SortExpression>
+            </SortExpressions>
+            <Top>0.46944in</Top>
+            <Height>0.93751in</Height>
+            <Width>5.27083in</Width>
+            <Style>
+              <Border>
+                <Style>None</Style>
+              </Border>
+            </Style>
+          </Tablix>
+          <Textbox Name="Textbox10">
+            <CanGrow>true</CanGrow>
+            <KeepTogether>true</KeepTogether>
+            <Paragraphs>
+              <Paragraph>
+                <TextRuns>
+                  <TextRun>
+                    <Value>Correspondence</Value>
+                    <Style>
+                      <FontFamily>Segoe UI Light</FontFamily>
+                      <FontSize>16pt</FontSize>
+                      <Color>#fe9666</Color>
+                    </Style>
+                  </TextRun>
+                </TextRuns>
+                <Style>
+                  <TextAlign>Left</TextAlign>
+                </Style>
+              </Paragraph>
+            </Paragraphs>
+            <rd:DefaultName>Textbox10</rd:DefaultName>
+            <Height>0.4in</Height>
+            <Width>5.27083in</Width>
+            <ZIndex>1</ZIndex>
+            <Style>
+              <Border>
+                <Style>None</Style>
+              </Border>
+              <VerticalAlign>Middle</VerticalAlign>
+              <PaddingLeft>2pt</PaddingLeft>
+              <PaddingRight>2pt</PaddingRight>
+              <PaddingTop>2pt</PaddingTop>
+              <PaddingBottom>2pt</PaddingBottom>
+            </Style>
+          </Textbox>
+        </ReportItems>
+        <Height>1.40695in</Height>
+        <Style>
+          <BackgroundColor>#525252</BackgroundColor>
+        </Style>
+      </Body>
+      <Width>5.27083in</Width>
+      <Page>
+        <LeftMargin>1in</LeftMargin>
+        <RightMargin>1in</RightMargin>
+        <TopMargin>1in</TopMargin>
+        <BottomMargin>1in</BottomMargin>
+        <Style />
+      </Page>
+    </ReportSection>
+  </ReportSections>
+  <ReportParameters>
+    <ReportParameter Name="HCO_CODE">
+      <DataType>String</DataType>
+      <Prompt>HCO CODE</Prompt>
+    </ReportParameter>
+    <ReportParameter Name="YEAR_MONTH">
+      <DataType>String</DataType>
+      <Prompt>YEAR MONTH</Prompt>
+    </ReportParameter>
+  </ReportParameters>
+  <ReportParametersLayout>
+    <GridLayoutDefinition>
+      <NumberOfColumns>4</NumberOfColumns>
+      <NumberOfRows>2</NumberOfRows>
+      <CellDefinitions>
+        <CellDefinition>
+          <ColumnIndex>0</ColumnIndex>
+          <RowIndex>0</RowIndex>
+          <ParameterName>HCO_CODE</ParameterName>
+        </CellDefinition>
+        <CellDefinition>
+          <ColumnIndex>1</ColumnIndex>
+          <RowIndex>0</RowIndex>
+          <ParameterName>YEAR_MONTH</ParameterName>
+        </CellDefinition>
+      </CellDefinitions>
+    </GridLayoutDefinition>
+  </ReportParametersLayout>
+  <rd:ReportUnitType>Inch</rd:ReportUnitType>
+  <rd:ReportID>5495dd3d-dd20-43c8-a77e-0ba0ba54651c</rd:ReportID>
+</Report>
+
+
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+-- DQR_Mini_Tracker_V2 --
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////-->
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////-->
+
+
+<?xml version="1.0" encoding="utf-8"?>
+<Report MustUnderstand="df" xmlns="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition" xmlns:rd="http://schemas.microsoft.com/SQLServer/reporting/reportdesigner" xmlns:df="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition/defaultfontfamily">
+  <df:DefaultFontFamily>Segoe UI</df:DefaultFontFamily>
+  <AutoRefresh>0</AutoRefresh>
+  <DataSources>
+    <DataSource Name="DATA_TRACKER">
+      <DataSourceReference>DATA_TRACKER</DataSourceReference>
+      <rd:SecurityType>None</rd:SecurityType>
+      <rd:DataSourceID>d8e489ca-37ac-4306-9554-35dcc885c8f3</rd:DataSourceID>
+    </DataSource>
+  </DataSources>
+  <DataSets>
+    <DataSet Name="DQR_Mini_Tracker">
+      <Query>
+        <DataSourceName>DATA_TRACKER</DataSourceName>
+        <QueryParameters>
+          <QueryParameter Name="@HCO_CODE">
+            <Value>=Parameters!HCO_CODE.Value</Value>
+          </QueryParameter>
+          <QueryParameter Name="@YEAR_MONTH">
+            <Value>=Parameters!YEAR_MONTH.Value</Value>
+          </QueryParameter>
+        </QueryParameters>
+        <CommandText>select rc.HCO_CODE, rc.YEARMONTH as YEAR_MONTH, t.ID, t.DQR_STATUS
+from
+
+(select HCO_CODE, HCO_NAME, (cast(YEAR(l.DIS_END_DATE) AS VARCHAR) + CAST(FORMAT(l.DIS_END_DATE, 'MM') AS VARCHAR)) AS YEAR_MONTH
+, l.BATCH_ID
+, DQR_STATUS
+, FORMAT(CONVERT(DATE, CAST((cast(YEAR(l.DIS_END_DATE) AS VARCHAR) + CAST(FORMAT(l.DIS_END_DATE, 'MM') AS VARCHAR)) AS varchar) + '01'), 'MMM yyyy', 'en-US') AS YEAR_MONTH_CONVERT
+, [3TL_YN]
+, ds.ID
+from DQR_MANAGER as dm
+join refDQRStatus as ds
+on dm.DQR_STATUS_ID = ds.ID
+join 
+portal_engine.dbo.[3T_File_Submission_Log] as l
+on dm.BATCH_ID = l.BATCH_ID
+join BATCH_PROV as bp
+on l.BATCH_ID = bp.BATCH_ID
+join 
+global.dbo.refHCO as ref
+on bp.PROVNUM = ref.PROVNUM 
+where FTP_FILENAME like '%_3T') as t
+right join
+RefCal_HCO_Cross as rc on t.HCO_CODE = rc.HCO_CODE and t.YEAR_MONTH = rc.YEARMONTH
+
+where rc.DATE BETWEEN DATEADD(Year,-1,GETDATE()) AND DATEADD(Month,+1,GETDATE())
+and ([3TL_YN] &lt;&gt; 0 or [3TL_YN] is NULL)
+and rc.HCO_CODE = @HCO_CODE
+and rc.YEARMONTH = @YEAR_MONTH
+order by YEAR_MONTH desc, BATCH_ID desc</CommandText>
+      </Query>
+      <Fields>
+        <Field Name="HCO_CODE">
+          <DataField>HCO_CODE</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+        <Field Name="YEAR_MONTH">
+          <DataField>YEAR_MONTH</DataField>
+          <rd:TypeName>System.Int32</rd:TypeName>
+        </Field>
+        <Field Name="ID">
+          <DataField>ID</DataField>
+          <rd:TypeName>System.Int32</rd:TypeName>
+        </Field>
+        <Field Name="DQR_STATUS">
+          <DataField>DQR_STATUS</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+      </Fields>
+    </DataSet>
+  </DataSets>
+  <ReportSections>
+    <ReportSection>
+      <Body>
+        <ReportItems>
+          <Tablix Name="Tablix2">
+            <TablixBody>
+              <TablixColumns>
+                <TablixColumn>
+                  <Width>1.40208in</Width>
+                </TablixColumn>
+              </TablixColumns>
+              <TablixRows>
+                <TablixRow>
+                  <Height>1.1875in</Height>
+                  <TablixCells>
+                    <TablixCell>
+                      <CellContents>
+                        <Textbox Name="DQR_STATUS">
+                          <KeepTogether>true</KeepTogether>
+                          <Paragraphs>
+                            <Paragraph>
+                              <TextRuns>
+                                <TextRun>
+                                  <Value>=Fields!DQR_STATUS.Value</Value>
+                                  <Style>
+                                    <FontStyle>Normal</FontStyle>
+                                    <FontFamily>Segoe UI Semibold</FontFamily>
+                                    <FontSize>11pt</FontSize>
+                                    <FontWeight>Bold</FontWeight>
+                                    <TextDecoration>None</TextDecoration>
+                                  </Style>
+                                </TextRun>
+                              </TextRuns>
+                              <Style>
+                                <TextAlign>Center</TextAlign>
+                              </Style>
+                            </Paragraph>
+                          </Paragraphs>
+                          <rd:DefaultName>DQR_STATUS</rd:DefaultName>
+                          <Style>
+                            <Border>
+                              <Color>#525252</Color>
+                              <Style>None</Style>
+                            </Border>
+                            <BackgroundColor>=iif(IsNothing(Fields!ID.Value)
+, "#EE4266", 
+SWITCH(
+Fields!ID.Value = 1, "#EE4266",
+Fields!ID.Value = 2, "#FFD23F",
+Fields!ID.Value = 3, "#3BCEAC",
+Fields!ID.Value = 4, "#0EAD69",
+Fields!ID.Value = 5, "#540D6E",
+Fields!ID.Value = 6, "#5eb6ff"))</BackgroundColor>
+                            <VerticalAlign>Middle</VerticalAlign>
+                            <PaddingLeft>2pt</PaddingLeft>
+                            <PaddingRight>2pt</PaddingRight>
+                            <PaddingTop>2pt</PaddingTop>
+                            <PaddingBottom>2pt</PaddingBottom>
+                          </Style>
+                        </Textbox>
+                      </CellContents>
+                    </TablixCell>
+                  </TablixCells>
+                </TablixRow>
+              </TablixRows>
+            </TablixBody>
+            <TablixColumnHierarchy>
+              <TablixMembers>
+                <TablixMember>
+                  <Group Name="HCO_CODE">
+                    <GroupExpressions>
+                      <GroupExpression>=Fields!HCO_CODE.Value</GroupExpression>
+                    </GroupExpressions>
+                  </Group>
+                  <SortExpressions>
+                    <SortExpression>
+                      <Value>=Fields!HCO_CODE.Value</Value>
+                    </SortExpression>
+                  </SortExpressions>
+                  <TablixMembers>
+                    <TablixMember>
+                      <TablixHeader>
+                        <Size>0.69062in</Size>
+                        <CellContents>
+                          <Textbox Name="Textbox11">
+                            <CanGrow>true</CanGrow>
+                            <KeepTogether>true</KeepTogether>
+                            <Paragraphs>
+                              <Paragraph>
+                                <TextRuns>
+                                  <TextRun>
+                                    <Value>DQR</Value>
+                                    <Style>
+                                      <FontFamily>Segoe UI Light</FontFamily>
+                                      <FontSize>16pt</FontSize>
+                                      <Color>#fe9666</Color>
+                                    </Style>
+                                  </TextRun>
+                                </TextRuns>
+                                <Style>
+                                  <TextAlign>Left</TextAlign>
+                                </Style>
+                              </Paragraph>
+                              <Paragraph>
+                                <TextRuns>
+                                  <TextRun>
+                                    <Value>Tracker</Value>
+                                    <Style>
+                                      <FontFamily>Segoe UI Light</FontFamily>
+                                      <FontSize>16pt</FontSize>
+                                      <Color>#fe9666</Color>
+                                    </Style>
+                                  </TextRun>
+                                </TextRuns>
+                                <Style>
+                                  <TextAlign>Left</TextAlign>
+                                </Style>
+                              </Paragraph>
+                            </Paragraphs>
+                            <rd:DefaultName>Textbox10</rd:DefaultName>
+                            <Style>
+                              <Border>
+                                <Color>#525252</Color>
+                                <Style>None</Style>
+                              </Border>
+                              <VerticalAlign>Bottom</VerticalAlign>
+                              <PaddingLeft>2pt</PaddingLeft>
+                              <PaddingRight>2pt</PaddingRight>
+                              <PaddingTop>2pt</PaddingTop>
+                              <PaddingBottom>2pt</PaddingBottom>
+                            </Style>
+                          </Textbox>
+                        </CellContents>
+                      </TablixHeader>
+                      <TablixMembers>
+                        <TablixMember />
+                      </TablixMembers>
+                    </TablixMember>
+                  </TablixMembers>
+                </TablixMember>
+              </TablixMembers>
+            </TablixColumnHierarchy>
+            <TablixRowHierarchy>
+              <TablixMembers>
+                <TablixMember />
+              </TablixMembers>
+            </TablixRowHierarchy>
+            <DataSetName>DQR_Mini_Tracker</DataSetName>
+            <Height>1.87812in</Height>
+            <Width>1.40208in</Width>
+            <Style>
+              <Border>
+                <Style>None</Style>
+              </Border>
+            </Style>
+          </Tablix>
+        </ReportItems>
+        <Height>1.87812in</Height>
+        <Style>
+          <BackgroundColor>#525252</BackgroundColor>
+        </Style>
+      </Body>
+      <Width>1.40208in</Width>
+      <Page>
+        <LeftMargin>1in</LeftMargin>
+        <RightMargin>1in</RightMargin>
+        <TopMargin>1in</TopMargin>
+        <BottomMargin>1in</BottomMargin>
+        <Style />
+      </Page>
+    </ReportSection>
+  </ReportSections>
+  <ReportParameters>
+    <ReportParameter Name="HCO_CODE">
+      <DataType>String</DataType>
+      <Prompt>HCO CODE</Prompt>
+    </ReportParameter>
+    <ReportParameter Name="YEAR_MONTH">
+      <DataType>String</DataType>
+      <Prompt>YEAR MONTH</Prompt>
+    </ReportParameter>
+  </ReportParameters>
+  <ReportParametersLayout>
+    <GridLayoutDefinition>
+      <NumberOfColumns>4</NumberOfColumns>
+      <NumberOfRows>2</NumberOfRows>
+      <CellDefinitions>
+        <CellDefinition>
+          <ColumnIndex>0</ColumnIndex>
+          <RowIndex>0</RowIndex>
+          <ParameterName>HCO_CODE</ParameterName>
+        </CellDefinition>
+        <CellDefinition>
+          <ColumnIndex>1</ColumnIndex>
+          <RowIndex>0</RowIndex>
+          <ParameterName>YEAR_MONTH</ParameterName>
+        </CellDefinition>
+      </CellDefinitions>
+    </GridLayoutDefinition>
+  </ReportParametersLayout>
+  <rd:ReportUnitType>Inch</rd:ReportUnitType>
+  <rd:ReportID>4ced7fc8-9d68-4cb7-bcca-375db3e18b7c</rd:ReportID>
+</Report>
+
+
+
+
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+-- Fact_Calendar_V2 --
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////-->
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////-->
+
+<?xml version="1.0" encoding="utf-8"?>
+<Report MustUnderstand="df" xmlns="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition" xmlns:rd="http://schemas.microsoft.com/SQLServer/reporting/reportdesigner" xmlns:df="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition/defaultfontfamily">
+  <df:DefaultFontFamily>Segoe UI</df:DefaultFontFamily>
+  <AutoRefresh>0</AutoRefresh>
+  <DataSources>
+    <DataSource Name="DATA_TRACKER">
+      <DataSourceReference>DATA_TRACKER</DataSourceReference>
+      <rd:SecurityType>None</rd:SecurityType>
+      <rd:DataSourceID>578cbf6c-0761-450b-8e30-ba1327d01fb5</rd:DataSourceID>
+    </DataSource>
+  </DataSources>
+  <DataSets>
+    <DataSet Name="Fact_Calendar">
+      <Query>
+        <DataSourceName>DATA_TRACKER</DataSourceName>
+        <QueryParameters>
+          <QueryParameter Name="@HCO_CODE">
+            <Value>=Parameters!HCO_CODE.Value</Value>
+          </QueryParameter>
+          <QueryParameter Name="@YEAR_MONTH">
+            <Value>=Parameters!YEAR_MONTH.Value</Value>
+          </QueryParameter>
+        </QueryParameters>
+        <CommandText>select t.HCO_CODE, t.HCO_NAME, MONTH_YEAR, YEAR_MONTH, COUNT(YEAR_MONTH) as CNT_YEAR_MONTH, MAX(FP_YEAR_MONTH) as FP_YEAR_MONTH, COUNT(FP_YEAR_MONTH) as CNT_FP_YEAR_MONTH, [3TL_YN], DATE, DAY_OF_WEEK_TEXT, LEFT(DAY_OF_WEEK_TEXT, 2) as DAY_OF_WEEK_ABV, MONTH_NAME, DAY_OF_MONTH, WEEK_OF_MONTH, DAY_OF_WEEK_NUM
+from
+(select distinct r.HCO_CODE, r.HCO_NAME
+,FORMAT(CONVERT(DATE, r.YYYYMMDD), 'MMM yyyy', 'en-US') as MONTH_YEAR
+,YEARMONTH as YEAR_MONTH
+,CAST(YEAR(DISCHARGE_DATE) AS VARCHAR) + CAST(FORMAT(DISCHARGE_DATE, 'MM') AS VARCHAR) AS FP_YEAR_MONTH,
+DATE, DAY_OF_WEEK_TEXT, MONTH_NAME,
+FORMAT(CONVERT(DATE, r.YYYYMMDD), 'dd', 'en-US') as DAY_OF_MONTH,
+DATEPART(ww, DATE) as WEEK_OF_MONTH,
+DATEPART(WEEKDAY, DATE) as DAY_OF_WEEK_NUM
+from refcal_hco_cross as r
+left join 
+(select hco_code, DISCHARGE_DATE from 
+PORTAL_ENGINE.dbo.factPatient 
+where discharge_date &gt;= dateadd(YEAR,-1,getdate())
+)
+as p on r.DATE = p.DISCHARGE_DATE and 
+r.HCO_CODE = p.HCO_CODE
+where r.date between dateadd(MONTH,-132,getdate()) and dateadd(MONTH,2,getdate())
+) as t join
+GLOBAL.dbo.refhco as r
+on t.hco_code = r.HCO_CODE
+where MONTH_YEAR BETWEEN DATEADD(Year,-1,GETDATE()) AND DATEADD(Month,+1,GETDATE())
+and t.HCO_CODE = @HCO_CODE
+and YEAR_MONTH = @YEAR_MONTH
+group by t.HCO_CODE, t.HCO_NAME, MONTH_YEAR, YEAR_MONTH, [3TL_YN], DATE, DAY_OF_WEEK_TEXT, MONTH_NAME, DAY_OF_MONTH, WEEK_OF_MONTH, DAY_OF_WEEK_NUM
+order by DATE</CommandText>
+      </Query>
+      <Fields>
+        <Field Name="HCO_CODE">
+          <DataField>HCO_CODE</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+        <Field Name="HCO_NAME">
+          <DataField>HCO_NAME</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+        <Field Name="MONTH_YEAR">
+          <DataField>MONTH_YEAR</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+        <Field Name="YEAR_MONTH">
+          <DataField>YEAR_MONTH</DataField>
+          <rd:TypeName>System.Int32</rd:TypeName>
+        </Field>
+        <Field Name="CNT_YEAR_MONTH">
+          <DataField>CNT_YEAR_MONTH</DataField>
+          <rd:TypeName>System.Int32</rd:TypeName>
+        </Field>
+        <Field Name="FP_YEAR_MONTH">
+          <DataField>FP_YEAR_MONTH</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+        <Field Name="CNT_FP_YEAR_MONTH">
+          <DataField>CNT_FP_YEAR_MONTH</DataField>
+          <rd:TypeName>System.Int32</rd:TypeName>
+        </Field>
+        <Field Name="ID3TL_YN">
+          <DataField>3TL_YN</DataField>
+          <rd:TypeName>System.Byte</rd:TypeName>
+        </Field>
+        <Field Name="DATE">
+          <DataField>DATE</DataField>
+          <rd:TypeName>System.DateTime</rd:TypeName>
+        </Field>
+        <Field Name="DAY_OF_WEEK_TEXT">
+          <DataField>DAY_OF_WEEK_TEXT</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+        <Field Name="DAY_OF_WEEK_ABV">
+          <DataField>DAY_OF_WEEK_ABV</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+        <Field Name="MONTH_NAME">
+          <DataField>MONTH_NAME</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+        <Field Name="DAY_OF_MONTH">
+          <DataField>DAY_OF_MONTH</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+        <Field Name="WEEK_OF_MONTH">
+          <DataField>WEEK_OF_MONTH</DataField>
+          <rd:TypeName>System.Int32</rd:TypeName>
+        </Field>
+        <Field Name="DAY_OF_WEEK_NUM">
+          <DataField>DAY_OF_WEEK_NUM</DataField>
+          <rd:TypeName>System.Int32</rd:TypeName>
+        </Field>
+      </Fields>
+    </DataSet>
+  </DataSets>
+  <ReportSections>
+    <ReportSection>
+      <Body>
+        <ReportItems>
+          <Tablix Name="Tablix13">
+            <TablixBody>
+              <TablixColumns>
+                <TablixColumn>
+                  <Width>0.29167in</Width>
+                </TablixColumn>
+              </TablixColumns>
+              <TablixRows>
+                <TablixRow>
+                  <Height>0.23264in</Height>
+                  <TablixCells>
+                    <TablixCell>
+                      <CellContents>
+                        <Textbox Name="DAY_OF_MONTH">
+                          <CanGrow>true</CanGrow>
+                          <KeepTogether>true</KeepTogether>
+                          <Paragraphs>
+                            <Paragraph>
+                              <TextRuns>
+                                <TextRun>
+                                  <Value>=Fields!DAY_OF_MONTH.Value</Value>
+                                  <Style>
+                                    <FontFamily>Segoe UI Light</FontFamily>
+                                    <FontWeight>Normal</FontWeight>
+                                    <Color>=SWITCH(
+(Fields!CNT_FP_YEAR_MONTH.Value) = 0 , "Black",
+(Fields!CNT_FP_YEAR_MONTH.Value) = 1, "White")</Color>
+                                  </Style>
+                                </TextRun>
+                              </TextRuns>
+                              <Style>
+                                <TextAlign>Center</TextAlign>
+                              </Style>
+                            </Paragraph>
+                          </Paragraphs>
+                          <rd:DefaultName>DAY_OF_MONTH</rd:DefaultName>
+                          <Style>
+                            <Border>
+                              <Style>None</Style>
+                            </Border>
+                            <BackgroundColor>=SWITCH(
+(Fields!CNT_FP_YEAR_MONTH.Value) = 0 , "#EE4266",
+(Fields!CNT_FP_YEAR_MONTH.Value) = 1, "#3BCEAC")</BackgroundColor>
+                            <VerticalAlign>Middle</VerticalAlign>
+                            <PaddingLeft>2pt</PaddingLeft>
+                            <PaddingRight>2pt</PaddingRight>
+                            <PaddingTop>2pt</PaddingTop>
+                            <PaddingBottom>2pt</PaddingBottom>
+                          </Style>
+                        </Textbox>
+                      </CellContents>
+                    </TablixCell>
+                  </TablixCells>
+                </TablixRow>
+              </TablixRows>
+            </TablixBody>
+            <TablixColumnHierarchy>
+              <TablixMembers>
+                <TablixMember>
+                  <Group Name="DAY_OF_WEEK_NUM">
+                    <GroupExpressions>
+                      <GroupExpression>=Fields!DAY_OF_WEEK_NUM.Value</GroupExpression>
+                    </GroupExpressions>
+                  </Group>
+                  <SortExpressions>
+                    <SortExpression>
+                      <Value>=Fields!DAY_OF_WEEK_NUM.Value</Value>
+                    </SortExpression>
+                  </SortExpressions>
+                  <TablixMembers>
+                    <TablixMember>
+                      <Group Name="DAY_OF_WEEK_TEXT1">
+                        <GroupExpressions>
+                          <GroupExpression>=Fields!DAY_OF_WEEK_TEXT.Value</GroupExpression>
+                        </GroupExpressions>
+                      </Group>
+                      <SortExpressions>
+                        <SortExpression>
+                          <Value>=Fields!DAY_OF_WEEK_TEXT.Value</Value>
+                        </SortExpression>
+                      </SortExpressions>
+                      <TablixMembers>
+                        <TablixMember>
+                          <TablixHeader>
+                            <Size>0.23264in</Size>
+                            <CellContents>
+                              <Textbox Name="Textbox12">
+                                <CanGrow>true</CanGrow>
+                                <KeepTogether>true</KeepTogether>
+                                <Paragraphs>
+                                  <Paragraph>
+                                    <TextRuns>
+                                      <TextRun>
+                                        <Value>=Fields!DAY_OF_WEEK_ABV.Value</Value>
+                                        <Style>
+                                          <FontFamily>Segoe UI Light</FontFamily>
+                                          <FontWeight>Bold</FontWeight>
+                                          <Color>White</Color>
+                                        </Style>
+                                      </TextRun>
+                                    </TextRuns>
+                                    <Style>
+                                      <TextAlign>Center</TextAlign>
+                                    </Style>
+                                  </Paragraph>
+                                </Paragraphs>
+                                <rd:DefaultName>Textbox10</rd:DefaultName>
+                                <Style>
+                                  <Border>
+                                    <Style>None</Style>
+                                  </Border>
+                                  <BackgroundColor>#525252</BackgroundColor>
+                                  <PaddingLeft>2pt</PaddingLeft>
+                                  <PaddingRight>2pt</PaddingRight>
+                                  <PaddingTop>2pt</PaddingTop>
+                                  <PaddingBottom>2pt</PaddingBottom>
+                                </Style>
+                              </Textbox>
+                            </CellContents>
+                          </TablixHeader>
+                        </TablixMember>
+                      </TablixMembers>
+                    </TablixMember>
+                  </TablixMembers>
+                </TablixMember>
+              </TablixMembers>
+            </TablixColumnHierarchy>
+            <TablixRowHierarchy>
+              <TablixMembers>
+                <TablixMember>
+                  <Group Name="WEEK_OF_MONTH">
+                    <GroupExpressions>
+                      <GroupExpression>=Fields!WEEK_OF_MONTH.Value</GroupExpression>
+                    </GroupExpressions>
+                  </Group>
+                  <SortExpressions>
+                    <SortExpression>
+                      <Value>=Fields!WEEK_OF_MONTH.Value</Value>
+                    </SortExpression>
+                  </SortExpressions>
+                  <TablixMembers>
+                    <TablixMember />
+                  </TablixMembers>
+                </TablixMember>
+              </TablixMembers>
+            </TablixRowHierarchy>
+            <DataSetName>Fact_Calendar</DataSetName>
+            <Top>0.44444in</Top>
+            <Height>0.46528in</Height>
+            <Width>0.29167in</Width>
+            <Style>
+              <Border>
+                <Style>None</Style>
+              </Border>
+            </Style>
+          </Tablix>
+          <Textbox Name="NOTES">
+            <KeepTogether>true</KeepTogether>
+            <Paragraphs>
+              <Paragraph>
+                <TextRuns>
+                  <TextRun>
+                    <Value>Fact Calendar</Value>
+                    <Style>
+                      <FontFamily>Segoe UI Light</FontFamily>
+                      <FontSize>18pt</FontSize>
+                      <Color>#fe9666</Color>
+                    </Style>
+                  </TextRun>
+                </TextRuns>
+                <Style>
+                  <TextAlign>Left</TextAlign>
+                </Style>
+              </Paragraph>
+            </Paragraphs>
+            <rd:DefaultName>NOTES</rd:DefaultName>
+            <Height>0.43055in</Height>
+            <Width>2.04167in</Width>
+            <ZIndex>1</ZIndex>
+            <Style>
+              <Border>
+                <Style>None</Style>
+              </Border>
+              <BackgroundColor>#525252</BackgroundColor>
+              <PaddingLeft>2pt</PaddingLeft>
+              <PaddingRight>2pt</PaddingRight>
+              <PaddingTop>2pt</PaddingTop>
+              <PaddingBottom>2pt</PaddingBottom>
+            </Style>
+          </Textbox>
+        </ReportItems>
+        <Height>0.90972in</Height>
+        <Style>
+          <Border>
+            <Style>None</Style>
+          </Border>
+          <BackgroundColor>#525252</BackgroundColor>
+        </Style>
+      </Body>
+      <Width>2.04167in</Width>
+      <Page>
+        <LeftMargin>1in</LeftMargin>
+        <RightMargin>1in</RightMargin>
+        <TopMargin>1in</TopMargin>
+        <BottomMargin>1in</BottomMargin>
+        <Style />
+      </Page>
+    </ReportSection>
+  </ReportSections>
+  <ReportParameters>
+    <ReportParameter Name="HCO_CODE">
+      <DataType>String</DataType>
+      <Prompt>HCO CODE</Prompt>
+    </ReportParameter>
+    <ReportParameter Name="YEAR_MONTH">
+      <DataType>String</DataType>
+      <Prompt>YEAR MONTH</Prompt>
+    </ReportParameter>
+  </ReportParameters>
+  <ReportParametersLayout>
+    <GridLayoutDefinition>
+      <NumberOfColumns>4</NumberOfColumns>
+      <NumberOfRows>2</NumberOfRows>
+      <CellDefinitions>
+        <CellDefinition>
+          <ColumnIndex>0</ColumnIndex>
+          <RowIndex>0</RowIndex>
+          <ParameterName>HCO_CODE</ParameterName>
+        </CellDefinition>
+        <CellDefinition>
+          <ColumnIndex>1</ColumnIndex>
+          <RowIndex>0</RowIndex>
+          <ParameterName>YEAR_MONTH</ParameterName>
+        </CellDefinition>
+      </CellDefinitions>
+    </GridLayoutDefinition>
+  </ReportParametersLayout>
+  <rd:ReportUnitType>Inch</rd:ReportUnitType>
+  <rd:ReportID>0c89cb5f-deee-4c4a-9ec3-6c6af762b783</rd:ReportID>
+</Report>
+
+
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+-- FP_Mini_Tracker_V2 --
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////-->
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////-->
+
+
+<?xml version="1.0" encoding="utf-8"?>
+<Report MustUnderstand="df" xmlns="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition" xmlns:rd="http://schemas.microsoft.com/SQLServer/reporting/reportdesigner" xmlns:df="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition/defaultfontfamily">
+  <df:DefaultFontFamily>Segoe UI</df:DefaultFontFamily>
+  <AutoRefresh>0</AutoRefresh>
+  <DataSources>
+    <DataSource Name="DATA_TRACKER">
+      <DataSourceReference>DATA_TRACKER</DataSourceReference>
+      <rd:SecurityType>None</rd:SecurityType>
+      <rd:DataSourceID>d071b45c-e35f-4e20-8fac-2c19b60568c8</rd:DataSourceID>
+    </DataSource>
+  </DataSources>
+  <DataSets>
+    <DataSet Name="File_Processed_Tracker">
+      <Query>
+        <DataSourceName>DATA_TRACKER</DataSourceName>
+        <QueryParameters>
+          <QueryParameter Name="@HCO_CODE">
+            <Value>=Parameters!HCO_CODE.Value</Value>
+          </QueryParameter>
+          <QueryParameter Name="@YEAR_MONTH">
+            <Value>=Parameters!YEAR_MONTH.Value</Value>
+          </QueryParameter>
+        </QueryParameters>
+        <CommandText>select distinct FTP_FILENAME
+from vwFILE_SUBMISSION_LOG
+
+where HCO_CODE = @HCO_CODE
+and YEAR_MONTH = @YEAR_MONTH
+and FTP_FILENAME like '%_3T'</CommandText>
+      </Query>
+      <Fields>
+        <Field Name="FTP_FILENAME">
+          <DataField>FTP_FILENAME</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+      </Fields>
+    </DataSet>
+  </DataSets>
+  <ReportSections>
+    <ReportSection>
+      <Body>
+        <ReportItems>
+          <Tablix Name="Tablix2">
+            <TablixBody>
+              <TablixColumns>
+                <TablixColumn>
+                  <Width>0.94375in</Width>
+                </TablixColumn>
+                <TablixColumn>
+                  <Width>0.45833in</Width>
+                </TablixColumn>
+              </TablixColumns>
+              <TablixRows>
+                <TablixRow>
+                  <Height>1.1875in</Height>
+                  <TablixCells>
+                    <TablixCell>
+                      <CellContents>
+                        <Textbox Name="Textbox10">
+                          <CanGrow>true</CanGrow>
+                          <KeepTogether>true</KeepTogether>
+                          <Paragraphs>
+                            <Paragraph>
+                              <TextRuns>
+                                <TextRun>
+                                  <Value>=COUNT(Fields!FTP_FILENAME.Value)</Value>
+                                  <Style>
+                                    <FontStyle>Normal</FontStyle>
+                                    <FontFamily>Segoe UI Light</FontFamily>
+                                    <FontSize>18pt</FontSize>
+                                    <FontWeight>Bold</FontWeight>
+                                    <TextDecoration>None</TextDecoration>
+                                  </Style>
+                                </TextRun>
+                              </TextRuns>
+                              <Style>
+                                <TextAlign>Center</TextAlign>
+                              </Style>
+                            </Paragraph>
+                          </Paragraphs>
+                          <rd:DefaultName>Textbox10</rd:DefaultName>
+                          <Style>
+                            <Border>
+                              <Color>#525252</Color>
+                              <Style>None</Style>
+                            </Border>
+                            <BackgroundColor>=SWITCH(
+COUNT(Fields!FTP_FILENAME.Value) &lt;= 0, "#EE4266",
+COUNT(Fields!FTP_FILENAME.Value) &gt;= 1, "#3BCEAC",
+COUNT(Fields!FTP_FILENAME.Value) &gt;= 2, "#3BCEAC")</BackgroundColor>
+                            <VerticalAlign>Middle</VerticalAlign>
+                            <PaddingLeft>2pt</PaddingLeft>
+                            <PaddingRight>2pt</PaddingRight>
+                            <PaddingTop>2pt</PaddingTop>
+                            <PaddingBottom>2pt</PaddingBottom>
+                          </Style>
+                        </Textbox>
+                        <ColSpan>2</ColSpan>
+                      </CellContents>
+                    </TablixCell>
+                    <TablixCell />
+                  </TablixCells>
+                </TablixRow>
+              </TablixRows>
+            </TablixBody>
+            <TablixColumnHierarchy>
+              <TablixMembers>
+                <TablixMember>
+                  <TablixHeader>
+                    <Size>0.69062in</Size>
+                    <CellContents>
+                      <Textbox Name="Textbox11">
+                        <CanGrow>true</CanGrow>
+                        <KeepTogether>true</KeepTogether>
+                        <Paragraphs>
+                          <Paragraph>
+                            <TextRuns>
+                              <TextRun>
+                                <Value>File Processed Tracker</Value>
+                                <Style>
+                                  <FontFamily>Segoe UI Light</FontFamily>
+                                  <FontSize>16pt</FontSize>
+                                  <Color>#fe9666</Color>
+                                </Style>
+                              </TextRun>
+                            </TextRuns>
+                            <Style>
+                              <TextAlign>Left</TextAlign>
+                            </Style>
+                          </Paragraph>
+                        </Paragraphs>
+                        <rd:DefaultName>Textbox10</rd:DefaultName>
+                        <Style>
+                          <Border>
+                            <Color>#525252</Color>
+                            <Style>None</Style>
+                          </Border>
+                          <VerticalAlign>Bottom</VerticalAlign>
+                          <PaddingLeft>2pt</PaddingLeft>
+                          <PaddingRight>2pt</PaddingRight>
+                          <PaddingTop>2pt</PaddingTop>
+                          <PaddingBottom>2pt</PaddingBottom>
+                        </Style>
+                      </Textbox>
+                    </CellContents>
+                  </TablixHeader>
+                  <TablixMembers>
+                    <TablixMember />
+                    <TablixMember />
+                  </TablixMembers>
+                </TablixMember>
+              </TablixMembers>
+            </TablixColumnHierarchy>
+            <TablixRowHierarchy>
+              <TablixMembers>
+                <TablixMember />
+              </TablixMembers>
+            </TablixRowHierarchy>
+            <DataSetName>File_Processed_Tracker</DataSetName>
+            <Height>1.87812in</Height>
+            <Width>1.40208in</Width>
+            <Style>
+              <Border>
+                <Style>None</Style>
+              </Border>
+            </Style>
+          </Tablix>
+        </ReportItems>
+        <Height>1.87812in</Height>
+        <Style>
+          <BackgroundColor>#525252</BackgroundColor>
+        </Style>
+      </Body>
+      <Width>1.40208in</Width>
+      <Page>
+        <LeftMargin>1in</LeftMargin>
+        <RightMargin>1in</RightMargin>
+        <TopMargin>1in</TopMargin>
+        <BottomMargin>1in</BottomMargin>
+        <Style />
+      </Page>
+    </ReportSection>
+  </ReportSections>
+  <ReportParameters>
+    <ReportParameter Name="HCO_CODE">
+      <DataType>String</DataType>
+      <Prompt>HCO CODE</Prompt>
+    </ReportParameter>
+    <ReportParameter Name="YEAR_MONTH">
+      <DataType>String</DataType>
+      <Prompt>YEAR MONTH</Prompt>
+    </ReportParameter>
+  </ReportParameters>
+  <ReportParametersLayout>
+    <GridLayoutDefinition>
+      <NumberOfColumns>4</NumberOfColumns>
+      <NumberOfRows>2</NumberOfRows>
+      <CellDefinitions>
+        <CellDefinition>
+          <ColumnIndex>0</ColumnIndex>
+          <RowIndex>0</RowIndex>
+          <ParameterName>HCO_CODE</ParameterName>
+        </CellDefinition>
+        <CellDefinition>
+          <ColumnIndex>1</ColumnIndex>
+          <RowIndex>0</RowIndex>
+          <ParameterName>YEAR_MONTH</ParameterName>
+        </CellDefinition>
+      </CellDefinitions>
+    </GridLayoutDefinition>
+  </ReportParametersLayout>
+  <rd:ReportUnitType>Inch</rd:ReportUnitType>
+  <rd:ReportID>e0d2df2d-30ba-4f6c-bcfc-4df616e098d8</rd:ReportID>
+</Report>
+
+
+
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+-- HCO_Detail_V2 --
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////-->
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////-->
+
+
+<?xml version="1.0" encoding="utf-8"?>
+<Report MustUnderstand="df" xmlns="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition" xmlns:rd="http://schemas.microsoft.com/SQLServer/reporting/reportdesigner" xmlns:df="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition/defaultfontfamily">
+  <df:DefaultFontFamily>Segoe UI</df:DefaultFontFamily>
+  <AutoRefresh>0</AutoRefresh>
+  <DataSources>
+    <DataSource Name="DATA_TRACKER">
+      <DataSourceReference>DATA_TRACKER</DataSourceReference>
+      <rd:SecurityType>None</rd:SecurityType>
+      <rd:DataSourceID>2310401e-d357-4e18-b323-4cbfe18dd20a</rd:DataSourceID>
+    </DataSource>
+  </DataSources>
+  <DataSets>
+    <DataSet Name="get_HCO">
+      <Query>
+        <DataSourceName>DATA_TRACKER</DataSourceName>
+        <QueryParameters>
+          <QueryParameter Name="@HCO_CODE">
+            <Value>=Parameters!HCO_CODE.Value</Value>
+          </QueryParameter>
+          <QueryParameter Name="@YEAR_MONTH">
+            <Value>=Parameters!YEAR_MONTH.Value</Value>
+          </QueryParameter>
+        </QueryParameters>
+        <CommandText>SELECT        HCO_CODE, HCO_NAME, YEAR_MONTH, BATCH_ID, DQR_STATUS, FORMAT(CONVERT(DATE, CAST(YEAR_MONTH AS varchar) + '01'), 'MMM yyyy', 'en-US') AS YEAR_MONTH_CONVERT
+FROM            dbo.vwFileDetail
+WHERE HCO_CODE = @HCO_CODE
+and YEAR_MONTH = @YEAR_MONTH
+ORDER BY YEAR_MONTH</CommandText>
+      </Query>
+      <Fields>
+        <Field Name="HCO_CODE">
+          <DataField>HCO_CODE</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+        <Field Name="HCO_NAME">
+          <DataField>HCO_NAME</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+        <Field Name="YEAR_MONTH">
+          <DataField>YEAR_MONTH</DataField>
+          <rd:TypeName>System.Int32</rd:TypeName>
+        </Field>
+        <Field Name="BATCH_ID">
+          <DataField>BATCH_ID</DataField>
+          <rd:TypeName>System.Int32</rd:TypeName>
+        </Field>
+        <Field Name="DQR_STATUS">
+          <DataField>DQR_STATUS</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+        <Field Name="YEAR_MONTH_CONVERT">
+          <DataField>YEAR_MONTH_CONVERT</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+      </Fields>
+    </DataSet>
+  </DataSets>
+  <ReportSections>
+    <ReportSection>
+      <Body>
+        <ReportItems>
+          <Tablix Name="Tablix3">
+            <TablixBody>
+              <TablixColumns>
+                <TablixColumn>
+                  <Width>5.16667in</Width>
+                </TablixColumn>
+              </TablixColumns>
+              <TablixRows>
+                <TablixRow>
+                  <Height>0.76042in</Height>
+                  <TablixCells>
+                    <TablixCell>
+                      <CellContents>
+                        <Textbox Name="HCO_CODE1">
+                          <CanGrow>true</CanGrow>
+                          <KeepTogether>true</KeepTogether>
+                          <Paragraphs>
+                            <Paragraph>
+                              <TextRuns>
+                                <TextRun>
+                                  <Value>=Fields!HCO_CODE.Value + " - " + Fields!HCO_NAME.Value + " - " + Fields!YEAR_MONTH_CONVERT.Value</Value>
+                                  <Style>
+                                    <FontFamily>Segoe UI Light</FontFamily>
+                                    <FontSize>18pt</FontSize>
+                                    <FontWeight>Bold</FontWeight>
+                                    <Color>#fe9666</Color>
+                                  </Style>
+                                </TextRun>
+                              </TextRuns>
+                              <Style>
+                                <TextAlign>Left</TextAlign>
+                              </Style>
+                            </Paragraph>
+                          </Paragraphs>
+                          <rd:DefaultName>HCO_CODE1</rd:DefaultName>
+                          <Style>
+                            <Border>
+                              <Style>None</Style>
+                            </Border>
+                            <BackgroundColor>#525252</BackgroundColor>
+                            <VerticalAlign>Middle</VerticalAlign>
+                            <PaddingLeft>2pt</PaddingLeft>
+                            <PaddingRight>2pt</PaddingRight>
+                            <PaddingTop>2pt</PaddingTop>
+                            <PaddingBottom>2pt</PaddingBottom>
+                          </Style>
+                        </Textbox>
+                        <rd:Selected>true</rd:Selected>
+                      </CellContents>
+                    </TablixCell>
+                  </TablixCells>
+                </TablixRow>
+              </TablixRows>
+            </TablixBody>
+            <TablixColumnHierarchy>
+              <TablixMembers>
+                <TablixMember>
+                  <Group Name="HCO_CODE">
+                    <GroupExpressions>
+                      <GroupExpression>=Fields!HCO_CODE.Value</GroupExpression>
+                    </GroupExpressions>
+                  </Group>
+                  <SortExpressions>
+                    <SortExpression>
+                      <Value>=Fields!HCO_CODE.Value</Value>
+                    </SortExpression>
+                  </SortExpressions>
+                  <TablixMembers>
+                    <TablixMember />
+                  </TablixMembers>
+                </TablixMember>
+              </TablixMembers>
+            </TablixColumnHierarchy>
+            <TablixRowHierarchy>
+              <TablixMembers>
+                <TablixMember />
+              </TablixMembers>
+            </TablixRowHierarchy>
+            <DataSetName>get_HCO</DataSetName>
+            <Height>0.76042in</Height>
+            <Width>5.16667in</Width>
+            <Style>
+              <Border>
+                <Style>None</Style>
+              </Border>
+            </Style>
+          </Tablix>
+        </ReportItems>
+        <Height>0.76042in</Height>
+        <Style>
+          <BackgroundColor>#525252</BackgroundColor>
+        </Style>
+      </Body>
+      <Width>5.16667in</Width>
+      <Page>
+        <LeftMargin>1in</LeftMargin>
+        <RightMargin>1in</RightMargin>
+        <TopMargin>1in</TopMargin>
+        <BottomMargin>1in</BottomMargin>
+        <Style />
+      </Page>
+    </ReportSection>
+  </ReportSections>
+  <ReportParameters>
+    <ReportParameter Name="HCO_CODE">
+      <DataType>String</DataType>
+      <Prompt>HCO CODE</Prompt>
+    </ReportParameter>
+    <ReportParameter Name="YEAR_MONTH">
+      <DataType>String</DataType>
+      <Prompt>YEAR MONTH</Prompt>
+    </ReportParameter>
+  </ReportParameters>
+  <ReportParametersLayout>
+    <GridLayoutDefinition>
+      <NumberOfColumns>4</NumberOfColumns>
+      <NumberOfRows>2</NumberOfRows>
+      <CellDefinitions>
+        <CellDefinition>
+          <ColumnIndex>0</ColumnIndex>
+          <RowIndex>0</RowIndex>
+          <ParameterName>HCO_CODE</ParameterName>
+        </CellDefinition>
+        <CellDefinition>
+          <ColumnIndex>1</ColumnIndex>
+          <RowIndex>0</RowIndex>
+          <ParameterName>YEAR_MONTH</ParameterName>
+        </CellDefinition>
+      </CellDefinitions>
+    </GridLayoutDefinition>
+  </ReportParametersLayout>
+  <rd:ReportUnitType>Inch</rd:ReportUnitType>
+  <rd:ReportID>d9358833-e604-47e7-aac8-dea984c34505</rd:ReportID>
+</Report>
+
+
+
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+-- Mini_Tracker_V2 --
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////-->
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////--> 
+<!--//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////-->
+
+<?xml version="1.0" encoding="utf-8"?>
+<Report MustUnderstand="df" xmlns="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition" xmlns:rd="http://schemas.microsoft.com/SQLServer/reporting/reportdesigner" xmlns:df="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition/defaultfontfamily">
+  <df:DefaultFontFamily>Segoe UI</df:DefaultFontFamily>
+  <AutoRefresh>0</AutoRefresh>
+  <DataSources>
+    <DataSource Name="DATA_TRACKER">
+      <DataSourceReference>DATA_TRACKER</DataSourceReference>
+      <rd:SecurityType>None</rd:SecurityType>
+      <rd:DataSourceID>7b1caacf-e702-4a5d-ada6-06b3c33e03c0</rd:DataSourceID>
+    </DataSource>
+  </DataSources>
+  <ReportSections>
+    <ReportSection>
+      <Body>
+        <ReportItems>
+          <Subreport Name="FP_Mini_Tracker_V2">
+            <ReportName>FP_Mini_Tracker_V2</ReportName>
+            <Parameters>
+              <Parameter Name="HCO_CODE">
+                <Value>=Parameters!HCO_CODE.Value</Value>
+              </Parameter>
+              <Parameter Name="YEAR_MONTH">
+                <Value>=Parameters!YEAR_MONTH.Value</Value>
+              </Parameter>
+            </Parameters>
+            <Height>1.87812in</Height>
+            <Width>1.40208in</Width>
+            <Style>
+              <Border>
+                <Style>None</Style>
+              </Border>
+            </Style>
+          </Subreport>
+          <Subreport Name="DQR_Mini_Tracker_V2">
+            <ReportName>DQR_Mini_Tracker_V2</ReportName>
+            <Parameters>
+              <Parameter Name="HCO_CODE">
+                <Value>=Parameters!HCO_CODE.Value</Value>
+              </Parameter>
+              <Parameter Name="YEAR_MONTH">
+                <Value>=Parameters!YEAR_MONTH.Value</Value>
+              </Parameter>
+            </Parameters>
+            <Left>1.42986in</Left>
+            <Height>1.87812in</Height>
+            <Width>1.40208in</Width>
+            <ZIndex>1</ZIndex>
+            <Style>
+              <Border>
+                <Style>None</Style>
+              </Border>
+            </Style>
+          </Subreport>
+        </ReportItems>
+        <Height>1.87812in</Height>
+        <Style>
+          <BackgroundColor>#525252</BackgroundColor>
+        </Style>
+      </Body>
+      <Width>2.83194in</Width>
+      <Page>
+        <LeftMargin>1in</LeftMargin>
+        <RightMargin>1in</RightMargin>
+        <TopMargin>1in</TopMargin>
+        <BottomMargin>1in</BottomMargin>
+        <Style />
+      </Page>
+    </ReportSection>
+  </ReportSections>
+  <ReportParameters>
+    <ReportParameter Name="HCO_CODE">
+      <DataType>String</DataType>
+      <Prompt>HCO_CODE</Prompt>
+    </ReportParameter>
+    <ReportParameter Name="YEAR_MONTH">
+      <DataType>String</DataType>
+      <Prompt>YEAR_MONTH</Prompt>
+    </ReportParameter>
+  </ReportParameters>
+  <ReportParametersLayout>
+    <GridLayoutDefinition>
+      <NumberOfColumns>4</NumberOfColumns>
+      <NumberOfRows>2</NumberOfRows>
+      <CellDefinitions>
+        <CellDefinition>
+          <ColumnIndex>0</ColumnIndex>
+          <RowIndex>0</RowIndex>
+          <ParameterName>HCO_CODE</ParameterName>
+        </CellDefinition>
+        <CellDefinition>
+          <ColumnIndex>1</ColumnIndex>
+          <RowIndex>0</RowIndex>
+          <ParameterName>YEAR_MONTH</ParameterName>
+        </CellDefinition>
+      </CellDefinitions>
+    </GridLayoutDefinition>
+  </ReportParametersLayout>
+  <rd:ReportUnitType>Inch</rd:ReportUnitType>
+  <rd:ReportID>b5727846-e9fd-4522-a833-9055939cc0f0</rd:ReportID>
+</Report>
